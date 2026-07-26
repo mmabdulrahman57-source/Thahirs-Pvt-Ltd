@@ -12,6 +12,7 @@ backend/data/
 backend/uploads/
 
 # Build output
+dist/
 frontend/dist/
 dist/
 

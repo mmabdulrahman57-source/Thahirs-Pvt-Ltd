@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local data & uploads
+data/
+backend/data/
+backend/uploads/
+
+# Build output
+frontend/dist/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS & editor
+.DS_Store
+.idea/
+.vscode/
+*.sw?
+
+# Cursor
+.cursor/

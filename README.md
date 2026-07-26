@@ -34,6 +34,34 @@ npm run dev
   - Email: `admin@thahirsgroup.com`
   - Password: `admin123`
 
+## Deploy on Vercel
+
+This project uses [Vercel Services](https://vercel.com/docs/services) (frontend + backend on one domain). The root `vercel.json` routes:
+
+- `/api/*` → Express backend
+- `/uploads/*` → Express backend
+- everything else → Vite frontend
+
+### Vercel project settings
+
+1. Import the GitHub repo on [vercel.com/new](https://vercel.com/new)
+2. Set **Framework Preset** to **Services** (if prompted)
+3. Add **Environment Variables** (Production + Preview):
+
+| Variable | Example |
+|----------|---------|
+| `MONGODB_URI` | Your Atlas connection string |
+| `MONGODB_URI_STANDARD` | Standard Atlas URI (optional fallback) |
+| `JWT_SECRET` | Strong random secret |
+| `ADMIN_EMAIL` | Admin login email |
+| `ADMIN_PASSWORD` | Admin login password |
+| `FROM_EMAIL` | Outgoing email address |
+| `FRONTEND_URL` | `https://your-domain.vercel.app` |
+
+4. Deploy — Vercel builds `frontend/` and `backend/` separately.
+
+**Note:** File uploads stored on the server disk do not persist on Vercel serverless. Use image URLs or Cloudinary for production uploads.
+
 ## Features
 
 - Premium industrial design with 3D hero section

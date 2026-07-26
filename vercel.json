@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "npm install && npm install --prefix frontend && npm install --prefix backend",
-  "buildCommand": "npm run build --prefix frontend && node scripts/copy-dist.cjs",
-  "outputDirectory": "dist",
+  "buildCommand": "npm run build --prefix frontend",
+  "outputDirectory": "frontend/dist",
   "functions": {
     "api/index.mjs": {
       "maxDuration": 60,

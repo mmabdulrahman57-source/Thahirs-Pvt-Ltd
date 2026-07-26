@@ -47,7 +47,11 @@ Uses standard Vercel routing (static frontend + serverless Express API):
 1. Import repo on [vercel.com/new](https://vercel.com/new)
 2. **Root Directory:** leave **empty** (do not use `client` or `frontend`)
 3. **Framework Preset:** Other (settings come from `vercel.json`)
-4. Add environment variables (Production):
+4. **Do NOT override** Install Command, Build Command, or Output Directory in the dashboard — `vercel.json` already sets:
+   - Install: `npm install && npm install --prefix frontend && npm install --prefix backend`
+   - Build: `npm run build --prefix frontend`
+   - Output: `frontend/dist`
+5. Add environment variables (Production):
 
 | Variable | Example |
 |----------|---------|

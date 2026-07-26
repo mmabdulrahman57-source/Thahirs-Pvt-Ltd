@@ -36,17 +36,18 @@ npm run dev
 
 ## Deploy on Vercel
 
-This project uses [Vercel Services](https://vercel.com/docs/services) (frontend + backend on one domain). The root `vercel.json` routes:
+Uses standard Vercel routing (static frontend + serverless Express API):
 
-- `/api/*` → Express backend
-- `/uploads/*` → Express backend
-- everything else → Vite frontend
+- `frontend/dist` — React website
+- `api/index.mjs` — Express backend (`/api/*`, `/uploads/*`)
+- `vercel.json` — build settings and SPA rewrites
 
 ### Vercel project settings
 
-1. Import the GitHub repo on [vercel.com/new](https://vercel.com/new)
-2. Set **Framework Preset** to **Services** (if prompted)
-3. Add **Environment Variables** (Production + Preview):
+1. Import repo on [vercel.com/new](https://vercel.com/new)
+2. **Root Directory:** leave **empty** (do not use `client` or `frontend`)
+3. **Framework Preset:** Other (settings come from `vercel.json`)
+4. Add environment variables (Production):
 
 | Variable | Example |
 |----------|---------|

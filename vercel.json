@@ -1,44 +1,26 @@
 {
-  "services": {
-    "frontend": {
-      "root": "frontend",
-      "framework": "vite",
-      "outputDirectory": "dist",
-      "rewrites": [
-        {
-          "source": "/((?!assets/).*)",
-          "destination": "/index.html"
-        }
-      ]
-    },
-    "backend": {
-      "root": "backend",
-      "framework": "express",
-      "runtime": "node",
-      "entrypoint": "src/server.js"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install --prefix frontend && npm install --prefix backend",
+  "buildCommand": "npm run build --prefix frontend",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.mjs": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "rewrites": [
     {
-      "source": "/api(/.*)?",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
+      "source": "/api/(.*)",
+      "destination": "/api"
     },
     {
-      "source": "/uploads(/.*)?",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
+      "source": "/uploads/(.*)",
+      "destination": "/api"
     },
     {
-      "source": "/(.*)",
-      "destination": {
-        "type": "service",
-        "service": "frontend"
-      }
+      "source": "/((?!assets/|logo.png|favicon.svg|icons.svg).*)",
+      "destination": "/index.html"
     }
   ]
 }

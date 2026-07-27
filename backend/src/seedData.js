@@ -51,7 +51,7 @@ const productTemplates = [
 
 export async function seedIfEmpty() {
   if (User.countDocuments() > 0) return;
-  console.log('Seeding MongoDB database...');
+  console.log('Seeding MySQL database (thahirs_db)...');
   resetDb();
 
   const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
@@ -119,5 +119,5 @@ export async function seedIfEmpty() {
     tax: { vatPercentage: 18, enabled: true, autoApply: true },
   });
 
-  console.log('MongoDB database seeded!');
+  console.log('MySQL database seeded!');
 }

@@ -10,8 +10,8 @@ Premium industrial corporate website for THAHIRS (PVT) LTD, Sri Lanka's trusted 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- MongoDB Atlas account (or local fallback via `data/db.json`)
+- Node.js 20+
+- MySQL 8.0 (local, Hostinger, cPanel, VPS, or AWS RDS)
 
 ### Setup
 
@@ -21,8 +21,15 @@ npm install
 cd frontend && npm install && cd ..
 cd backend && npm install && cd ..
 
-# Copy env file and add your MongoDB URI
+# Create MySQL database: thahirs_db
+# Copy env file and set DATABASE_URL
 cp backend/.env.example backend/.env
+
+# Apply schema and seed
+cd backend
+npm run db:push
+npm run db:seed
+cd ..
 
 # Start both frontend and backend
 npm run dev
@@ -55,8 +62,7 @@ Uses standard Vercel routing (static frontend + serverless Express API):
 
 | Variable | Example |
 |----------|---------|
-| `MONGODB_URI` | Your Atlas connection string |
-| `MONGODB_URI_STANDARD` | Standard Atlas URI (optional fallback) |
+| `DATABASE_URL` | `mysql://user:pass@host:3306/thahirs_db` |
 | `JWT_SECRET` | Strong random secret |
 | `ADMIN_EMAIL` | Admin login email |
 | `ADMIN_PASSWORD` | Admin login password |

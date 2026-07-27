@@ -1,9 +1,25 @@
-import mongoose from 'mongoose';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
-import { connectDB } from './db.js';
+import { connectDB, prisma } from './db.js';
+import {
+  userToCache, userFromCache,
+  categoryToCache, categoryFromCache,
+  brandToCache, brandFromCache,
+  productToCache, productFromCache,
+  quotationToCache, quotationFromCache, quotationItemFromCache, quotationItemsFromCache,
+  messageToCache, messageFromCache,
+  teamToCache, teamFromCache,
+  galleryToCache, galleryFromCache,
+  projectToCache, projectFromCache,
+  testimonialToCache, testimonialFromCache,
+  faqToCache, faqFromCache,
+  newsletterToCache, newsletterFromCache,
+  downloadToCache, downloadFromCache,
+  notificationToCache, notificationFromCache,
+  activityToCache, activityFromCache,
+} from './storeMappers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const DATA_DIR = join(__dirname, '../../data');
@@ -36,78 +52,8 @@ const defaultDb = {
   cms: {},
 };
 
-const models = {};
-const metaModel = (() => {
-  const schema = new mongoose.Schema({
-    _id: { type: String, required: true },
-    data: { type: mongoose.Schema.Types.Mixed, default: {} },
-  }, { collection: 'appmeta', versionKey: false });
-  return mongoose.models.AppMeta || mongoose.model('AppMeta', schema);
-})();
-
-function getModel(collection) {
-  if (!models[collection]) {
-    const schema = new mongoose.Schema({}, { strict: false, timestamps: true, versionKey: false, collection });
-    schema.add({ _id: { type: String, default: () => randomUUID() } });
-    models[collection] = mongoose.models[collection] || mongoose.model(collection, schema, collection);
-  }
-  return models[collection];
-}
-
 let cache = structuredClone(defaultDb);
 let initialized = false;
-
-function toPlain(doc) {
-  if (!doc) return doc;
-  const plain = { ...doc };
-  if (plain._id) plain._id = String(plain._id);
-  if (plain.createdAt instanceof Date) plain.createdAt = plain.createdAt.toISOString();
-  if (plain.updatedAt instanceof Date) plain.updatedAt = plain.updatedAt.toISOString();
-  return plain;
-}
-
-function persistDoc(collection, doc) {
-  if (!initialized) return;
-  getModel(collection).replaceOne({ _id: doc._id }, doc, { upsert: true }).catch(err => {
-    console.error(`Mongo persist failed (${collection}/${doc._id}):`, err.message);
-  });
-}
-
-function persistDelete(collection, id) {
-  if (!initialized) return;
-  getModel(collection).deleteOne({ _id: id }).catch(err => {
-    console.error(`Mongo delete failed (${collection}/${id}):`, err.message);
-  });
-}
-
-function persistMeta(key, data) {
-  if (!initialized) return;
-  metaModel.replaceOne({ _id: key }, { _id: key, data }, { upsert: true }).catch(err => {
-    console.error(`Mongo meta persist failed (${key}):`, err.message);
-  });
-}
-
-async function loadFromMongo() {
-  for (const name of ARRAY_KEYS) {
-    const docs = await getModel(name).find().lean();
-    cache[name] = docs.map(toPlain);
-  }
-  for (const key of ['settings', 'cms', 'analytics']) {
-    const meta = await metaModel.findById(key).lean();
-    cache[key] = meta?.data ?? defaultDb[key];
-  }
-}
-
-async function persistAll() {
-  for (const name of ARRAY_KEYS) {
-    const Model = getModel(name);
-    await Model.deleteMany({});
-    if (cache[name]?.length) await Model.insertMany(cache[name]);
-  }
-  for (const key of ['settings', 'cms', 'analytics']) {
-    await metaModel.replaceOne({ _id: key }, { _id: key, data: cache[key] }, { upsert: true });
-  }
-}
 
 function saveLocalFile() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
@@ -125,24 +71,279 @@ function importFromJsonFile() {
   return true;
 }
 
+async function loadSettingsFromDb() {
+  let row = await prisma.websiteSettings.findUnique({ where: { id: 'main' } });
+  if (!row) {
+    row = await prisma.websiteSettings.create({ data: { id: 'main' } });
+  }
+  cache.settings = row.settingsJson || {};
+  cache.cms = row.cmsJson || {};
+  cache.analytics = row.analyticsJson || defaultDb.analytics;
+}
+
+async function loadFromMySQL() {
+  const [
+    users, categories, brands, products, productImages, quotations, quotationItems,
+    messages, team, gallery, projects, testimonials, faqs, newsletter, downloads, notifications, activityLogs,
+  ] = await Promise.all([
+    prisma.user.findMany(),
+    prisma.category.findMany(),
+    prisma.brand.findMany(),
+    prisma.product.findMany(),
+    prisma.productImage.findMany(),
+    prisma.quotation.findMany(),
+    prisma.quotationItem.findMany(),
+    prisma.message.findMany(),
+    prisma.teamMember.findMany(),
+    prisma.gallery.findMany(),
+    prisma.project.findMany(),
+    prisma.testimonial.findMany(),
+    prisma.faq.findMany(),
+    prisma.newsletter.findMany(),
+    prisma.download.findMany(),
+    prisma.notification.findMany(),
+    prisma.activityLog.findMany(),
+  ]);
+
+  const imagesByProduct = productImages.reduce((acc, img) => {
+    (acc[img.productId] ||= []).push(img);
+    return acc;
+  }, {});
+
+  const itemsByQuotation = quotationItems.reduce((acc, item) => {
+    (acc[item.quotationId] ||= []).push(item);
+    return acc;
+  }, {});
+
+  cache.users = users.map(userToCache);
+  cache.categories = categories.map(categoryToCache);
+  cache.brands = brands.map(brandToCache);
+  cache.products = products.map(p => productToCache(p, imagesByProduct[p.id] || []));
+  cache.quotations = quotations.map(q => quotationToCache(q, itemsByQuotation[q.id] || []));
+  cache.messages = messages.map(messageToCache);
+  cache.team = team.map(teamToCache);
+  cache.gallery = gallery.map(galleryToCache);
+  cache.projects = projects.map(projectToCache);
+  cache.testimonials = testimonials.map(testimonialToCache);
+  cache.faqs = faqs.map(faqToCache);
+  cache.newsletter = newsletter.map(newsletterToCache);
+  cache.downloads = downloads.map(downloadToCache);
+  cache.notifications = notifications.map(notificationToCache);
+  cache.activityLogs = activityLogs.map(activityToCache);
+
+  await loadSettingsFromDb();
+}
+
+async function persistAllToMySQL() {
+  await prisma.$transaction(async (tx) => {
+    await tx.quotationItem.deleteMany();
+    await tx.quotation.deleteMany();
+    await tx.productImage.deleteMany();
+    await tx.product.deleteMany();
+    await tx.category.deleteMany();
+    await tx.brand.deleteMany();
+    await tx.user.deleteMany();
+    await tx.message.deleteMany();
+    await tx.teamMember.deleteMany();
+    await tx.gallery.deleteMany();
+    await tx.project.deleteMany();
+    await tx.testimonial.deleteMany();
+    await tx.faq.deleteMany();
+    await tx.newsletter.deleteMany();
+    await tx.download.deleteMany();
+    await tx.notification.deleteMany();
+    await tx.activityLog.deleteMany();
+
+    for (const doc of cache.users) {
+      await tx.user.create({ data: userFromCache(doc) });
+    }
+    for (const doc of cache.categories) {
+      await tx.category.create({ data: categoryFromCache(doc) });
+    }
+    for (const doc of cache.brands) {
+      await tx.brand.create({ data: brandFromCache(doc) });
+    }
+    for (const doc of cache.products) {
+      const data = productFromCache(doc);
+      const images = doc.images || [];
+      await tx.product.create({
+        data: {
+          ...data,
+          images: images.length ? {
+            create: images.map(url => ({ imageUrl: url })),
+          } : undefined,
+        },
+      });
+    }
+    for (const doc of cache.quotations) {
+      const qData = quotationFromCache(doc);
+      const items = quotationItemsFromCache(doc);
+      await tx.quotation.create({
+        data: {
+          ...qData,
+          items: items?.length ? {
+            create: items.map(item => {
+              const mapped = quotationItemFromCache(item, doc._id);
+              const { id, quotationId, ...rest } = mapped;
+              return rest;
+            }),
+          } : undefined,
+        },
+      });
+    }
+    for (const doc of cache.messages) await tx.message.create({ data: messageFromCache(doc) });
+    for (const doc of cache.team) await tx.teamMember.create({ data: teamFromCache(doc) });
+    for (const doc of cache.gallery) await tx.gallery.create({ data: galleryFromCache(doc) });
+    for (const doc of cache.projects) await tx.project.create({ data: projectFromCache(doc) });
+    for (const doc of cache.testimonials) await tx.testimonial.create({ data: testimonialFromCache(doc) });
+    for (const doc of cache.faqs) await tx.faq.create({ data: faqFromCache(doc) });
+    for (const doc of cache.newsletter) await tx.newsletter.create({ data: newsletterFromCache(doc) });
+    for (const doc of cache.downloads) await tx.download.create({ data: downloadFromCache(doc) });
+    for (const doc of cache.notifications) await tx.notification.create({ data: notificationFromCache(doc) });
+    for (const doc of cache.activityLogs) await tx.activityLog.create({ data: activityFromCache(doc) });
+  });
+
+  await persistSettings();
+}
+
+async function persistSettings() {
+  if (!initialized) return;
+  await prisma.websiteSettings.upsert({
+    where: { id: 'main' },
+    create: {
+      id: 'main',
+      settingsJson: cache.settings,
+      cmsJson: cache.cms,
+      analyticsJson: cache.analytics,
+    },
+    update: {
+      settingsJson: cache.settings,
+      cmsJson: cache.cms,
+      analyticsJson: cache.analytics,
+    },
+  });
+}
+
+async function persistDoc(collection, doc) {
+  if (!initialized) return;
+  try {
+    switch (collection) {
+      case 'users':
+        await prisma.user.upsert({ where: { id: doc._id }, create: userFromCache(doc), update: userFromCache(doc) });
+        break;
+      case 'categories':
+        await prisma.category.upsert({ where: { id: doc._id }, create: categoryFromCache(doc), update: categoryFromCache(doc) });
+        break;
+      case 'brands':
+        await prisma.brand.upsert({ where: { id: doc._id }, create: brandFromCache(doc), update: brandFromCache(doc) });
+        break;
+      case 'products': {
+        const data = productFromCache(doc);
+        await prisma.product.upsert({ where: { id: doc._id }, create: data, update: data });
+        await prisma.productImage.deleteMany({ where: { productId: doc._id } });
+        const images = doc.images || (doc.image ? [doc.image] : []);
+        if (images.length) {
+          await prisma.productImage.createMany({
+            data: images.map(url => ({ productId: doc._id, imageUrl: url })),
+          });
+        }
+        break;
+      }
+      case 'quotations': {
+        const qData = quotationFromCache(doc);
+        const items = quotationItemsFromCache(doc);
+        await prisma.quotation.upsert({ where: { id: doc._id }, create: qData, update: qData });
+        if (items) {
+          await prisma.quotationItem.deleteMany({ where: { quotationId: doc._id } });
+          for (const item of items) {
+            const mapped = quotationItemFromCache(item, doc._id);
+            await prisma.quotationItem.create({ data: mapped });
+          }
+        }
+        break;
+      }
+      case 'messages':
+        await prisma.message.upsert({ where: { id: doc._id }, create: messageFromCache(doc), update: messageFromCache(doc) });
+        break;
+      case 'team':
+        await prisma.teamMember.upsert({ where: { id: doc._id }, create: teamFromCache(doc), update: teamFromCache(doc) });
+        break;
+      case 'gallery':
+        await prisma.gallery.upsert({ where: { id: doc._id }, create: galleryFromCache(doc), update: galleryFromCache(doc) });
+        break;
+      case 'projects':
+        await prisma.project.upsert({ where: { id: doc._id }, create: projectFromCache(doc), update: projectFromCache(doc) });
+        break;
+      case 'testimonials':
+        await prisma.testimonial.upsert({ where: { id: doc._id }, create: testimonialFromCache(doc), update: testimonialFromCache(doc) });
+        break;
+      case 'faqs':
+        await prisma.faq.upsert({ where: { id: doc._id }, create: faqFromCache(doc), update: faqFromCache(doc) });
+        break;
+      case 'newsletter':
+        await prisma.newsletter.upsert({ where: { id: doc._id }, create: newsletterFromCache(doc), update: newsletterFromCache(doc) });
+        break;
+      case 'downloads':
+        await prisma.download.upsert({ where: { id: doc._id }, create: downloadFromCache(doc), update: downloadFromCache(doc) });
+        break;
+      case 'notifications':
+        await prisma.notification.upsert({ where: { id: doc._id }, create: notificationFromCache(doc), update: notificationFromCache(doc) });
+        break;
+      case 'activityLogs':
+        await prisma.activityLog.upsert({ where: { id: doc._id }, create: activityFromCache(doc), update: activityFromCache(doc) });
+        break;
+      default:
+        break;
+    }
+  } catch (err) {
+    console.error(`MySQL persist failed (${collection}/${doc._id}):`, err.message);
+  }
+}
+
+async function persistDelete(collection, id) {
+  if (!initialized) return;
+  try {
+    const deletes = {
+      users: () => prisma.user.delete({ where: { id } }),
+      categories: () => prisma.category.delete({ where: { id } }),
+      brands: () => prisma.brand.delete({ where: { id } }),
+      products: () => prisma.product.delete({ where: { id } }),
+      quotations: () => prisma.quotation.delete({ where: { id } }),
+      messages: () => prisma.message.delete({ where: { id } }),
+      team: () => prisma.teamMember.delete({ where: { id } }),
+      gallery: () => prisma.gallery.delete({ where: { id } }),
+      projects: () => prisma.project.delete({ where: { id } }),
+      testimonials: () => prisma.testimonial.delete({ where: { id } }),
+      faqs: () => prisma.faq.delete({ where: { id } }),
+      newsletter: () => prisma.newsletter.delete({ where: { id } }),
+      downloads: () => prisma.download.delete({ where: { id } }),
+      notifications: () => prisma.notification.delete({ where: { id } }),
+      activityLogs: () => prisma.activityLog.delete({ where: { id } }),
+    };
+    if (deletes[collection]) await deletes[collection]();
+  } catch (err) {
+    console.error(`MySQL delete failed (${collection}/${id}):`, err.message);
+  }
+}
+
 export async function initStore() {
   if (initialized) return;
 
   try {
     await connectDB();
-    await loadFromMongo();
+    await loadFromMySQL();
 
     const isEmpty = cache.users.length === 0 && cache.products.length === 0;
     if (isEmpty && importFromJsonFile()) {
-      console.log('Importing existing db.json into MongoDB...');
-      await persistAll();
-      console.log('db.json imported to MongoDB');
+      console.log('Importing existing db.json into MySQL...');
+      await persistAllToMySQL();
+      console.log('db.json imported to MySQL');
     }
 
     initialized = true;
-    console.log('Using MongoDB Atlas for data storage');
+    console.log('Using MySQL (thahirs_db) for data storage');
   } catch (err) {
-    console.warn('MongoDB connection failed — falling back to local db.json');
+    console.warn('MySQL connection failed — falling back to local db.json');
     console.warn(err.message);
     if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
     if (importFromJsonFile()) {
@@ -177,7 +378,7 @@ export class Collection {
     if (filter.$or) {
       const q = filter.$or;
       items = items.filter(i => q.some(f => {
-        if (f.name?.$regex) return new RegExp(f.name.$regex, f.name.$options || 'i').test(i.name || '');
+        if (f.name?.$regex) return new RegExp(f.name.$regex, f.name.$options || 'i').test(i.name || i.productName || '');
         if (f.email?.$regex) return new RegExp(f.email.$regex, f.email.$options || 'i').test(i.email || '');
         if (f.description?.$regex) return new RegExp(f.description.$regex, f.description.$options || 'i').test(i.description || '');
         if (f.tags?.$regex) return (i.tags || []).some(t => new RegExp(f.tags.$regex, f.tags.$options || 'i').test(t));
@@ -192,7 +393,7 @@ export class Collection {
     if (query._id) return items.find(i => i._id === query._id) || null;
     if (query.slug) return items.find(i => i.slug === query.slug) || null;
     if (query.email) return items.find(i => i.email === query.email) || null;
-    if (query.reference) return items.find(i => i.reference === query.reference) || null;
+    if (query.reference) return items.find(i => i.reference === query.reference || i.quotationNumber === query.reference) || null;
     if (query.key) return items.find(i => i.key === query.key) || null;
     return null;
   }
@@ -238,7 +439,7 @@ export class Collection {
     const ids = (cache[this.name] || []).map(i => i._id);
     cache[this.name] = [];
     if (initialized) {
-      getModel(this.name).deleteMany({}).catch(err => console.error(`Mongo deleteMany failed (${this.name}):`, err.message));
+      ids.forEach(id => persistDelete(this.name, id));
     }
     touchCache();
     return { deletedCount: ids.length };
@@ -267,7 +468,7 @@ export function getSettings() {
 
 export function saveSettings(data) {
   cache.settings = { ...cache.settings, ...data, updatedAt: new Date().toISOString() };
-  persistMeta('settings', cache.settings);
+  persistSettings().catch(err => console.error('Settings persist failed:', err.message));
   touchCache();
   return cache.settings;
 }
@@ -278,7 +479,7 @@ export function getCms() {
 
 export function saveCms(data) {
   cache.cms = { ...cache.cms, ...data, updatedAt: new Date().toISOString() };
-  persistMeta('cms', cache.cms);
+  persistSettings().catch(err => console.error('CMS persist failed:', err.message));
   touchCache();
   return cache.cms;
 }
@@ -289,7 +490,7 @@ export function getAnalytics() {
 
 export function saveAnalytics(data) {
   cache.analytics = { ...cache.analytics, ...data };
-  persistMeta('analytics', cache.analytics);
+  persistSettings().catch(err => console.error('Analytics persist failed:', err.message));
   touchCache();
   return cache.analytics;
 }
@@ -310,10 +511,7 @@ export function populate(items, fields) {
 export function resetDb() {
   cache = structuredClone(defaultDb);
   if (initialized) {
-    Promise.all([
-      ...ARRAY_KEYS.map(name => getModel(name).deleteMany({})),
-      metaModel.deleteMany({}),
-    ]).catch(err => console.error('Mongo reset failed:', err.message));
+    persistAllToMySQL().catch(err => console.error('MySQL reset failed:', err.message));
   }
   touchCache();
 }
@@ -328,13 +526,27 @@ export function backupDb() {
   return backupPath;
 }
 
+export async function exportDatabase() {
+  return JSON.stringify(cache, null, 2);
+}
+
 export function restoreDb(fromPath) {
   if (!existsSync(fromPath)) throw new Error('Backup file not found');
   cache = JSON.parse(readFileSync(fromPath, 'utf8'));
   Object.keys(defaultDb).forEach(k => { if (!cache[k]) cache[k] = defaultDb[k]; });
   if (initialized) {
-    persistAll().catch(err => console.error('Mongo restore failed:', err.message));
+    persistAllToMySQL().catch(err => console.error('MySQL restore failed:', err.message));
   }
+  touchCache();
+}
+
+export function importDatabase(jsonString) {
+  const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+  cache = { ...structuredClone(defaultDb), ...data };
+  if (initialized) {
+    persistAllToMySQL().catch(err => console.error('MySQL import failed:', err.message));
+  }
+  touchCache();
 }
 
 export function load() {
@@ -344,6 +556,8 @@ export function load() {
 export function save(db) {
   cache = { ...cache, ...db };
   if (initialized) {
-    persistAll().catch(err => console.error('Mongo save failed:', err.message));
+    persistAllToMySQL().catch(err => console.error('MySQL save failed:', err.message));
   }
 }
+
+export { prisma };

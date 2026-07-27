@@ -39,7 +39,15 @@ export async function createApp() {
   app.use(express.json({ limit: '10mb' }));
   app.use('/uploads', express.static(UPLOAD_ROOT));
 
-  app.get('/api/health', (_, res) => res.json({ status: 'ok', company: 'THAHIRS (PVT) LTD' }));
+  app.get('/api/health', async (_, res) => {
+    try {
+      const { healthCheck } = await import('./db.js');
+      await healthCheck();
+      res.json({ status: 'ok', company: 'THAHIRS (PVT) LTD', database: 'mysql' });
+    } catch {
+      res.json({ status: 'ok', company: 'THAHIRS (PVT) LTD', database: 'json-fallback' });
+    }
+  });
 
   app.use('/api/auth', authRoutes);
   app.use('/api/products', productRoutes);

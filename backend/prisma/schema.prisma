@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Users table — customers and admins (role field distinguishes)
+model User {
+  id          String   @id @default(uuid())
+  fullName    String   @map("full_name")
+  companyName String?  @map("company_name")
+  email       String   @unique
+  phone       String?
+  whatsapp    String?
+  address     String?  @db.Text
+  password    String
+  role        String   @default("customer") // customer | admin
+  adminRole   String?  @map("admin_role") // super_admin, admin, sales_manager, etc.
+  status      String   @default("active")
+  active      Boolean  @default(true)
+  lastLogin   DateTime? @map("last_login")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quotations   Quotation[]
+  activityLogs ActivityLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  categoryName String  @map("category_name")
+  slug        String   @unique
+  description String?  @db.Text
+  image       String?
+  icon        String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id          String   @id @default(uuid())
+  brandName   String   @map("brand_name")
+  logo        String?
+  description String?  @db.Text
+  website     String?
+  country     String?
+  featured    Boolean  @default(true)
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  productName   String   @map("product_name")
+  productCode   String?  @map("product_code")
+  slug          String   @unique
+  categoryId    String?  @map("category_id")
+  brandId       String?  @map("brand_id")
+  description   String?  @db.Text
+  specification Json?
+  image         String?
+  datasheet     String?
+  status        String   @default("active")
+  featured      Boolean  @default(false)
+  tags          Json?
+  archived      Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand          Brand?          @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  images         ProductImage[]
+  quotationItems QuotationItem[]
+
+  @@index([productCode])
+  @@index([categoryId])
+  @@index([brandId])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  imageUrl  String   @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model Quotation {
+  id              String   @id @default(uuid())
+  quotationNumber String   @unique @map("quotation_number")
+  customerId      String?  @map("customer_id")
+  requestDate     DateTime @default(now()) @map("request_date")
+  subtotal        Decimal  @default(0) @db.Decimal(14, 2)
+  discount        Decimal  @default(0) @db.Decimal(14, 2)
+  netAmount       Decimal  @default(0) @map("net_amount") @db.Decimal(14, 2)
+  vatPercentage   Decimal  @default(18) @map("vat_percentage") @db.Decimal(5, 2)
+  vatAmount       Decimal  @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  grandTotal      Decimal  @default(0) @map("grand_total") @db.Decimal(14, 2)
+  status          String   @default("new_request")
+  remarks         String?  @db.Text
+  priority        String?
+  assignedTo      String?
+  archived        Boolean  @default(false)
+  customer        Json?
+  charges         Json?
+  timeline        Json?
+  revisions       Json?
+  extra           Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user  User?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items QuotationItem[]
+
+  @@index([quotationNumber])
+  @@index([customerId])
+  @@index([status])
+  @@map("quotation_requests")
+}
+
+model QuotationItem {
+  id          String   @id @default(uuid())
+  quotationId String   @map("quotation_id")
+  productId   String?  @map("product_id")
+  description String?  @db.Text
+  quantity    Int      @default(1)
+  unit        String   @default("pcs")
+  unitPrice   Decimal  @default(0) @map("unit_price") @db.Decimal(14, 2)
+  amount      Decimal  @default(0) @db.Decimal(14, 2)
+  extra       Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  company   String?
+  subject   String?
+  message   String   @db.Text
+  status    String   @default("unread")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@map("contact_messages")
+}
+
+model TeamMember {
+  id           String   @id @default(uuid())
+  name         String
+  designation  String
+  image        String?
+  description  String?  @db.Text
+  email        String?
+  phone        String?
+  experience   String?
+  department   String?
+  biography    String?  @db.Text
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("team_members")
+}
+
+model Gallery {
+  id        String   @id @default(uuid())
+  title     String?
+  imageUrl  String   @map("image_url")
+  category  String?
+  type      String   @default("image")
+  featured  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("gallery")
+}
+
+model Testimonial {
+  id           String   @id @default(uuid())
+  customerName String   @map("customer_name")
+  companyName  String?  @map("company_name")
+  image        String?
+  review       String   @db.Text
+  rating       Int      @default(5)
+  role         String?
+  featured     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("testimonials")
+}
+
+model Faq {
+  id           String   @id @default(uuid())
+  question     String   @db.Text
+  answer       String   @db.Text
+  category     String?
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("faq")
+}
+
+model Newsletter {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@map("newsletter")
+}
+
+model WebsiteSettings {
+  id           String   @id @default("main")
+  companyName  String?  @map("company_name")
+  logo         String?
+  favicon      String?
+  address      String?  @db.Text
+  phone        String?
+  email        String?
+  whatsapp     String?
+  facebook     String?
+  linkedin     String?
+  youtube      String?
+  workingHours String?  @map("working_hours")
+  settingsJson Json?    @map("settings_json")
+  cmsJson      Json?    @map("cms_json")
+  analyticsJson Json?   @map("analytics_json")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("website_settings")
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  activity  String
+  type      String?
+  message   String?  @db.Text
+  meta      Json?
+  ipAddress String?  @map("ip_address")
+  browser   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("activity_logs")
+}
+
+// Extra tables used by the admin panel
+model Project {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.Text
+  industry    String?
+  location    String?
+  clientName  String?   @map("client_name")
+  status      String?
+  images      Json?
+  featured    Boolean   @default(false)
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("projects")
+}
+
+model Download {
+  id        String   @id @default(uuid())
+  title     String
+  type      String?
+  url       String
+  category  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("downloads")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String?
+  title     String?
+  message   String?  @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}

@@ -1,13 +1,15 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import { readdirSync } from 'fs';
 import { join } from 'path';
 import {
   User, Category, Brand, Product, Quotation, Message, TeamMember, Gallery,
   Project, Testimonial, Faq, Newsletter, Download, Notification, ActivityLog,
-  populate, getSettings, saveSettings, getCms, saveCms, getAnalytics, backupDb,
+  populate, getSettings, saveSettings, getCms, saveCms, getAnalytics,
   DATA_DIR,
 } from '../jsonStore.js';
+import {
+  listBackups, createJsonBackup, createSqlBackup, exportDb, restoreFromJson, importFromJson,
+} from '../utils/backup.js';
 import { authMiddleware, adminOnly } from '../middleware/auth.js';
 import { logActivity, ROLES, PERMISSIONS } from '../utils/activity.js';
 import { generateQuotationPDF } from '../utils/pdf.js';
@@ -469,11 +471,13 @@ router.get('/reports/:type', (req, res) => {
 });
 
 // ─── BACKUP ───
-router.post('/backup', (req, res) => {
+router.post('/backup', async (req, res) => {
   try {
-    const path = backupDb();
+    const jsonPath = createJsonBackup();
+    let sqlPath = null;
+    try { sqlPath = await createSqlBackup(); } catch { /* mysqldump optional */ }
     logActivity('backup', 'Manual backup created', req.user.id);
-    res.json({ message: 'Backup created', path });
+    res.json({ message: 'Backup created', path: jsonPath, sqlPath });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -481,9 +485,41 @@ router.post('/backup', (req, res) => {
 
 router.get('/backups', (req, res) => {
   try {
-    const files = readdirSync(DATA_DIR).filter(f => f.startsWith('backup-')).reverse();
-    res.json(files);
+    res.json(listBackups());
   } catch { res.json([]); }
+});
+
+router.get('/backup/export', async (req, res) => {
+  try {
+    const data = await exportDb();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=thahirs-export.json');
+    res.send(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/backup/import', (req, res) => {
+  try {
+    importFromJson(req.body?.data || req.body);
+    logActivity('backup', 'Database imported from JSON', req.user.id);
+    res.json({ message: 'Database imported successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/backup/restore', (req, res) => {
+  try {
+    const { file } = req.body;
+    if (!file) return res.status(400).json({ message: 'Backup filename required' });
+    restoreFromJson(join(DATA_DIR, file));
+    logActivity('backup', `Database restored from ${file}`, req.user.id);
+    res.json({ message: 'Database restored successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 // ─── IMAGE UPLOAD ───

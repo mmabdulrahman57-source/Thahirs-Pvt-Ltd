@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { disconnectDB } from './db.js';
 import { initStore } from './jsonStore.js';
 import { seedIfEmpty } from './seedData.js';
+import { runDailyBackup } from './utils/backup.js';
 
 dotenv.config();
 
@@ -13,4 +14,10 @@ async function seed() {
   process.exit(0);
 }
 
-seed().catch((err) => { console.error(err); process.exit(1); });
+if (process.argv.includes('--daily-backup')) {
+  runDailyBackup()
+    .then(() => { console.log('Daily backup complete'); process.exit(0); })
+    .catch(err => { console.error(err); process.exit(1); });
+} else {
+  seed().catch((err) => { console.error(err); process.exit(1); });
+}

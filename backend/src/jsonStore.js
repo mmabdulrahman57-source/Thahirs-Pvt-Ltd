@@ -3,6 +3,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { connectDB, prisma } from './db.js';
+import { ensureDir, isServerless, serverlessPath } from './utils/serverless.js';
 import {
   userToCache, userFromCache,
   categoryToCache, categoryFromCache,
@@ -22,7 +23,9 @@ import {
 } from './storeMappers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const DATA_DIR = join(__dirname, '../../data');
+export const DATA_DIR = isServerless
+  ? serverlessPath('thahirs-data')
+  : join(__dirname, '../../data');
 export const DB_FILE = join(DATA_DIR, 'db.json');
 
 const ARRAY_KEYS = [
@@ -56,8 +59,12 @@ let cache = structuredClone(defaultDb);
 let initialized = false;
 
 function saveLocalFile() {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
+  try {
+    ensureDir(DATA_DIR);
+    writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
+  } catch (err) {
+    console.warn('Could not persist local db.json:', err.message);
+  }
 }
 
 function touchCache() {
@@ -345,7 +352,7 @@ export async function initStore() {
   } catch (err) {
     console.warn('MySQL connection failed — falling back to local db.json');
     console.warn(err.message);
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    ensureDir(DATA_DIR);
     if (importFromJsonFile()) {
       console.log('Loaded data from db.json');
     } else {
@@ -517,12 +524,16 @@ export function resetDb() {
 }
 
 export function backupDb() {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+  ensureDir(DATA_DIR);
   const backupPath = join(DATA_DIR, `backup-${Date.now()}.json`);
-  writeFileSync(backupPath, JSON.stringify(cache, null, 2));
-  if (!existsSync(DB_FILE)) writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
-  else copyFileSync(DB_FILE, join(DATA_DIR, `db-snapshot-${Date.now()}.json`));
-  writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
+  try {
+    writeFileSync(backupPath, JSON.stringify(cache, null, 2));
+    if (!existsSync(DB_FILE)) writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
+    else copyFileSync(DB_FILE, join(DATA_DIR, `db-snapshot-${Date.now()}.json`));
+    writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
+  } catch (err) {
+    console.warn('Could not create backup file:', err.message);
+  }
   return backupPath;
 }
 

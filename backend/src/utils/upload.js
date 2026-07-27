@@ -1,16 +1,17 @@
 import multer from 'multer';
-import { mkdirSync, existsSync } from 'fs';
 import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { ensureDir, isServerless, serverlessPath } from './serverless.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const UPLOAD_ROOT = join(__dirname, '../../uploads');
+export const UPLOAD_ROOT = isServerless
+  ? serverlessPath('thahirs-uploads')
+  : join(__dirname, '../../uploads');
 export const PRODUCT_UPLOAD_DIR = join(UPLOAD_ROOT, 'products');
 
-[UPLOAD_ROOT, PRODUCT_UPLOAD_DIR].forEach(dir => {
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-});
+ensureDir(UPLOAD_ROOT);
+ensureDir(PRODUCT_UPLOAD_DIR);
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, PRODUCT_UPLOAD_DIR),

@@ -17,6 +17,13 @@ function isAllowedOrigin(origin) {
   if (!origin) return true;
   if (/^http:\/\/localhost:\d+$/.test(origin)) return true;
 
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname.endsWith('.vercel.app')) return true;
+  } catch {
+    // ignore invalid origin URLs
+  }
+
   const allowed = [
     process.env.FRONTEND_URL,
     process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,

@@ -4,6 +4,7 @@ import PageHero from '../components/ui/PageHero';
 import { COMPANY, TIMELINE, CORE_VALUES } from '../data/company';
 import { getTeam } from '../lib/api';
 import { Mail, Globe } from 'lucide-react';
+import founderPhoto from '../assets/founder.png';
 
 function teamPhotoSrc(url?: string) {
   if (!url) return '';
@@ -57,11 +58,12 @@ export default function AboutPage() {
       <section className="section-padding">
         <div className="container-custom grid lg:grid-cols-2 gap-12 items-center">
           <FadeIn>
-            <div className="w-full h-96 bg-gradient-to-br from-primary/20 to-charcoal/10 rounded-2xl flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-32 h-32 bg-primary/20 rounded-full mx-auto flex items-center justify-center text-5xl font-bold text-primary mb-4">T</div>
-                <div className="text-sm text-primary font-semibold uppercase tracking-widest">Founder</div>
-              </div>
+            <div className="w-full aspect-[4/5] max-h-[28rem] rounded-2xl overflow-hidden shadow-xl ring-1 ring-steel/20 dark:ring-white/10">
+              <img
+                src={founderPhoto}
+                alt={`${COMPANY.founder}, Founder of ${COMPANY.name}`}
+                className="w-full h-full object-cover object-top"
+              />
             </div>
           </FadeIn>
           <FadeIn delay={0.2}>

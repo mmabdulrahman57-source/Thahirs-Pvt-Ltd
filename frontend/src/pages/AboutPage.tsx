@@ -58,11 +58,11 @@ export default function AboutPage() {
       <section className="section-padding">
         <div className="container-custom grid lg:grid-cols-2 gap-12 items-center">
           <FadeIn>
-            <div className="w-full aspect-[4/5] max-h-[28rem] rounded-2xl overflow-hidden shadow-xl ring-1 ring-steel/20 dark:ring-white/10">
+            <div className="w-full max-w-md mx-auto lg:mx-0 rounded-2xl overflow-hidden shadow-xl ring-1 ring-steel/20 dark:ring-white/10 bg-[#5c3d7a]">
               <img
                 src={founderPhoto}
                 alt={`${COMPANY.founder}, Founder of ${COMPANY.name}`}
-                className="w-full h-full object-cover object-top"
+                className="w-full h-auto block"
               />
             </div>
           </FadeIn>

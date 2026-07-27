@@ -45,7 +45,7 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative -mt-[72px]" aria-label="Hero banner">
+    <section className="relative -mt-[60px] md:-mt-[72px]" aria-label="Hero banner">
       <div className="relative min-h-0 md:min-h-[75vh] lg:min-h-[90vh] flex flex-col overflow-hidden">
         {/* Background */}
         <div className="absolute inset-0">
@@ -63,7 +63,7 @@ export default function HeroSection() {
 
         <div className="absolute inset-0 hero-industrial-particles pointer-events-none" aria-hidden />
 
-        <div className="container-custom relative z-10 flex-1 flex flex-col justify-center pt-[88px] pb-10 md:pb-14 lg:pb-16">
+        <div className="container-custom relative z-10 flex-1 flex flex-col justify-center pt-[76px] pb-10 md:pt-[88px] md:pb-14 lg:pb-16">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 xl:gap-16 items-center">
             {/* Left content */}
             <div className="text-center lg:text-left">

@@ -43,6 +43,10 @@ body {
   @apply max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8;
 }
 
+.safe-area-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
 .section-padding {
   @apply py-16 sm:py-20 lg:py-24;
 }

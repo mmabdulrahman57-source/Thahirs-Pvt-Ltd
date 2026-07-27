@@ -5,6 +5,7 @@ import { Menu, X, Sun, Moon, Search, FileText, User, ChevronDown, LogOut } from 
 import { useTheme } from '../../context/ThemeContext';
 import { useQuotation } from '../../context/QuotationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useMobileNav } from '../../context/MobileNavContext';
 import { searchProducts, getCategories } from '../../lib/api';
 import Logo from '../ui/Logo';
 
@@ -19,7 +20,7 @@ const navLinks = [
 ];
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
+  const { menuOpen: open, setMenuOpen: setOpen, toggleMenu } = useMobileNav();
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [megaOpen, setMegaOpen] = useState(false);
@@ -94,21 +95,22 @@ export default function Navbar() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 py-2.5
+      className={`fixed top-0 left-0 right-0 z-[110] transition-all duration-300 py-2
         bg-white dark:bg-charcoal
         border-b border-steel/15 dark:border-white/10
         ${scrolled ? 'shadow-md shadow-black/5 dark:shadow-black/30' : 'shadow-sm'}`}
     >
-      <div className="container-custom flex items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-3 shrink-0" aria-label="THAHIRS Home">
-          <Logo size="md" className="rounded-lg" />
-          <div className="hidden sm:block">
-            <div className="font-bold text-lg leading-tight text-charcoal dark:text-white">THAHIRS</div>
+      <div className="container-custom flex items-center justify-between gap-2 min-w-0">
+        <Link to="/" className="flex items-center gap-2 shrink-0 min-w-0" aria-label="THAHIRS Home">
+          <Logo size="sm" className="rounded-lg md:hidden" />
+          <Logo size="md" className="rounded-lg hidden md:block" />
+          <div className="hidden sm:block min-w-0">
+            <div className="font-bold text-base sm:text-lg leading-tight text-charcoal dark:text-white truncate">THAHIRS</div>
             <div className="text-xs text-primary font-semibold">Since 1949</div>
           </div>
         </Link>
 
-        <nav className="hidden xl:flex items-center gap-0.5" aria-label="Main navigation">
+        <nav className="hidden lg:flex items-center gap-0.5" aria-label="Main navigation">
           {navLinks.map(link => (
             link.mega ? (
               <div key={link.to} className="relative" onMouseEnter={() => setMegaOpen(true)} onMouseLeave={() => setMegaOpen(false)}>
@@ -144,8 +146,8 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          <button onClick={() => setSearchOpen(!searchOpen)} className={iconBtnClass} aria-label="Search products">
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <button onClick={() => setSearchOpen(!searchOpen)} className={`${iconBtnClass} hidden sm:inline-flex`} aria-label="Search products">
             <Search size={18} className={iconColor} strokeWidth={2.25} />
           </button>
           <Link to="/quotation" onClick={handleQuotationClick} className={`relative hidden sm:inline-flex ${iconBtnClass}`} aria-label="Quotation cart">
@@ -156,7 +158,7 @@ export default function Navbar() {
               </span>
             )}
           </Link>
-          <button onClick={toggle} className={iconBtnClass} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+          <button onClick={toggle} className={`${iconBtnClass} hidden sm:inline-flex`} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
             {theme === 'light' ? <Moon size={18} className={iconColor} strokeWidth={2.25} /> : <Sun size={18} className={iconColor} strokeWidth={2.25} />}
           </button>
 
@@ -185,8 +187,14 @@ export default function Navbar() {
 
           <Link to="/quotation" onClick={handleQuotationClick} className="hidden lg:inline-flex btn-primary btn-sm ml-1">Get Quote</Link>
 
-          <button onClick={() => setOpen(!open)} className={`xl:hidden ${iconBtnClass}`} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
-            {open ? <X size={22} className={iconColor} strokeWidth={2.25} /> : <Menu size={22} className={iconColor} strokeWidth={2.25} />}
+          <button
+            onClick={toggleMenu}
+            className="lg:hidden inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] rounded-xl bg-primary text-white font-semibold text-sm shrink-0 shadow-sm hover:bg-primary-dark transition-colors"
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+          >
+            {open ? <X size={20} strokeWidth={2.5} /> : <Menu size={20} strokeWidth={2.5} />}
+            <span className="sr-only sm:not-sr-only">{open ? 'Close' : 'Menu'}</span>
           </button>
         </div>
       </div>
@@ -218,10 +226,10 @@ export default function Navbar() {
         {open && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-40 xl:hidden" onClick={() => setOpen(false)} aria-hidden />
+              className="fixed inset-0 bg-black/50 z-[120] lg:hidden" onClick={() => setOpen(false)} aria-hidden />
             <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }}
               transition={{ type: 'tween', duration: 0.25 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white dark:bg-charcoal z-50 xl:hidden overflow-y-auto shadow-2xl">
+              className="fixed inset-y-0 right-0 w-[min(100%,20rem)] bg-white dark:bg-charcoal z-[121] lg:hidden overflow-y-auto shadow-2xl pb-[72px]">
               <div className="p-6 border-b border-steel/15 dark:border-white/10 flex justify-between items-center">
                 <span className="font-bold text-lg text-charcoal dark:text-white">Menu</span>
                 <button onClick={() => setOpen(false)} className={iconBtnClass} aria-label="Close">
@@ -235,6 +243,16 @@ export default function Navbar() {
                     {link.label}
                   </Link>
                 ))}
+                <div className="border-t border-steel/15 dark:border-white/10 mt-4 pt-4 space-y-2 sm:hidden">
+                  <button type="button" onClick={() => { setOpen(false); setSearchOpen(true); }}
+                    className="flex items-center gap-2 w-full px-4 py-3.5 rounded-xl text-charcoal dark:text-white hover:bg-steel/10 dark:hover:bg-white/10">
+                    <Search size={18} /> Search Products
+                  </button>
+                  <button type="button" onClick={toggle}
+                    className="flex items-center gap-2 w-full px-4 py-3.5 rounded-xl text-charcoal dark:text-white hover:bg-steel/10 dark:hover:bg-white/10">
+                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />} Toggle Theme
+                  </button>
+                </div>
                 <div className="border-t border-steel/15 dark:border-white/10 mt-4 pt-4 space-y-2">
                   <Link to="/quotation" onClick={handleQuotationClick} className="btn-primary w-full text-center">Request Quotation</Link>
                   {!user ? (

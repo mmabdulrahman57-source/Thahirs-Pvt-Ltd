@@ -21,7 +21,7 @@ export default function FloatingButtons() {
   const btnClass = "w-12 h-12 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform duration-200 cursor-pointer";
 
   return (
-    <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-2 pointer-events-none">
+    <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-2 pointer-events-none max-md:bottom-[4.75rem]">
       {/* Desktop */}
       <div className="hidden sm:flex flex-col gap-2 pointer-events-auto">
         {showTop && (

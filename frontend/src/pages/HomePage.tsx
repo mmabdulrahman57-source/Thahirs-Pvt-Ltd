@@ -1,12 +1,12 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   Flame, Droplets, Cylinder, GitBranch, Settings, Wind, Gauge, Activity,
   Shield, Layers, Fuel, FlaskConical, ChevronRight, Star, CheckCircle,
   Factory, HardHat, Building2, Hotel, HeartPulse, Zap, Landmark, Wrench,
 } from 'lucide-react';
 import HeroSection from '../components/home/HeroSection';
+import BrandsMarquee from '../components/home/BrandsMarquee';
 import since1949Img from '../assets/since-1949.png';
 import { AnimatedCounter, FadeIn, SectionTitle } from '../components/ui/AnimatedCounter';
 import { HIGHLIGHTS, WHY_CHOOSE, INDUSTRIES, FAQ } from '../data/company';
@@ -126,23 +126,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Brands Slider */}
-      <section className="section-padding bg-charcoal overflow-hidden">
-        <div className="container-custom">
-          <SectionTitle subtitle="Partners" title="Global Brands" light />
-          <div className="relative">
-            <motion.div animate={{ x: [0, -1200] }} transition={{ repeat: Infinity, duration: 25, ease: 'linear' }}
-              className="flex gap-8 whitespace-nowrap">
-              {[...brands, ...brands].map((brand, i) => (
-                <div key={`${brand._id}-${i}`} className="inline-flex flex-col items-center glass rounded-xl px-8 py-4 min-w-[180px]">
-                  <span className="font-bold text-white">{brand.name}</span>
-                  <span className="text-primary text-sm">{brand.country}</span>
-                </div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-      </section>
+      <BrandsMarquee brands={brands} />
 
       {/* Industries */}
       <section className="section-padding bg-light dark:bg-charcoal/50">

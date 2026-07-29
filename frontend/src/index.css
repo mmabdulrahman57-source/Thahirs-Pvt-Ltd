@@ -586,9 +586,38 @@ input[type='search']::-webkit-search-results-decoration {
 
 @media (prefers-reduced-motion: reduce) {
   .hero-bg-kenburns,
-  .hero-industrial-particles {
-    animation: none;
+  .hero-industrial-particles,
+  .brand-marquee-track {
+    animation: none !important;
   }
+}
+
+/* ─── Brands marquee (homepage) ─── */
+@keyframes brand-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes brand-marquee-reverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+.brand-marquee-track {
+  animation: brand-marquee 45s linear infinite;
+}
+
+.brand-marquee-track--reverse {
+  animation: brand-marquee-reverse 50s linear infinite;
+}
+
+.brand-marquee-row:hover .brand-marquee-track {
+  animation-play-state: paused;
+}
+
+.brand-marquee-mask {
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
 }
 
 /* ─── Breadcrumb ─── */

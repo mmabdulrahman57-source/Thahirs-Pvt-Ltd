@@ -4,12 +4,22 @@ export function getDatabaseUrl() {
   let url = process.env.DATABASE_URL?.trim();
   if (!url) return undefined;
 
+  // Remove wrapping quotes from pasted values
+  url = url.replace(/^["']|["']$/g, '');
+
   const cleverCloud = /clever-cloud\.com/i.test(url);
-  const cloudHost = cleverCloud || /planetscale|aiven|railway|aws\.com|tidbcloud/i.test(url);
-  if (cloudHost && !/sslaccept=|ssl-mode=|sslmode=/i.test(url)) {
+
+  if (cleverCloud) {
+    // Always force accept_invalid_certs — Clever Cloud cert chain fails on Vercel/Node
+    if (/sslaccept=/i.test(url)) {
+      url = url.replace(/sslaccept=[^&]*/i, 'sslaccept=accept_invalid_certs');
+    } else {
+      url += url.includes('?') ? '&' : '?';
+      url += 'sslaccept=accept_invalid_certs';
+    }
+  } else if (/planetscale|aiven|railway|aws\.com|tidbcloud/i.test(url) && !/sslaccept=/i.test(url)) {
     url += url.includes('?') ? '&' : '?';
-    // Clever Cloud uses a cert chain that fails strict verification on Vercel/Node
-    url += cleverCloud ? 'sslaccept=accept_invalid_certs' : 'sslaccept=strict';
+    url += 'sslaccept=strict';
   }
 
   if (process.env.VERCEL && !/connection_limit=/i.test(url)) {
@@ -21,5 +31,6 @@ export function getDatabaseUrl() {
 }
 
 export function hasDatabaseUrl() {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  const url = process.env.DATABASE_URL?.trim();
+  return Boolean(url);
 }

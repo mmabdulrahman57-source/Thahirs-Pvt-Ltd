@@ -1,41 +1,66 @@
 import { v2 as cloudinary } from 'cloudinary';
-import { readFileSync, unlinkSync } from 'fs';
+import { existsSync, unlinkSync } from 'fs';
+
+function env(name) {
+  return process.env[name]?.trim() || '';
+}
+
+let configured = false;
 
 export function isCloudinaryConfigured() {
   return Boolean(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
+    env('CLOUDINARY_CLOUD_NAME') &&
+    env('CLOUDINARY_API_KEY') &&
+    env('CLOUDINARY_API_SECRET')
   );
 }
 
-function configureCloudinary() {
+export function configureCloudinary() {
+  if (configured) return;
+
   cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    cloud_name: env('CLOUDINARY_CLOUD_NAME'),
+    api_key: env('CLOUDINARY_API_KEY'),
+    api_secret: env('CLOUDINARY_API_SECRET'),
     secure: true,
   });
+
+  configured = true;
+  console.log('[cloudinary] Configured cloud:', env('CLOUDINARY_CLOUD_NAME'));
+}
+
+export function getCloudinaryStatus() {
+  return {
+    configured: isCloudinaryConfigured(),
+    cloudName: env('CLOUDINARY_CLOUD_NAME') || null,
+    hasApiKey: Boolean(env('CLOUDINARY_API_KEY')),
+    hasApiSecret: Boolean(env('CLOUDINARY_API_SECRET')),
+  };
 }
 
 export async function uploadProductImage(file) {
-  if (!file) throw new Error('No file provided');
+  if (!file?.path) throw new Error('No file provided');
 
-  if (isCloudinaryConfigured()) {
-    configureCloudinary();
-    try {
-      const buffer = readFileSync(file.path);
-      const result = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          { folder: 'thahirs/products', resource_type: 'image' },
-          (err, res) => (err ? reject(err) : resolve(res))
-        ).end(buffer);
-      });
-      return result.secure_url;
-    } finally {
-      try { unlinkSync(file.path); } catch { /* ignore */ }
+  if (!isCloudinaryConfigured()) {
+    if (process.env.VERCEL) {
+      throw new Error('Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Vercel.');
     }
+    return `/uploads/products/${file.filename}`;
   }
 
-  return `/uploads/products/${file.filename}`;
+  if (!existsSync(file.path)) {
+    throw new Error(`Upload file not found: ${file.path}`);
+  }
+
+  configureCloudinary();
+
+  try {
+    const result = await cloudinary.uploader.upload(file.path, {
+      folder: 'thahirs/products',
+      resource_type: 'image',
+    });
+    return result.secure_url;
+  } finally {
+    try { unlinkSync(file.path); } catch { /* ignore */ }
+  }
 }

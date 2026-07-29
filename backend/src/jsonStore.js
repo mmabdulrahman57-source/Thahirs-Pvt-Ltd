@@ -59,6 +59,7 @@ const defaultDb = {
 let cache = structuredClone(defaultDb);
 let initialized = false;
 let initError = null;
+let initPromise = null;
 
 export function isStoreReady() {
   return initialized;
@@ -66,6 +67,21 @@ export function isStoreReady() {
 
 export function getStoreError() {
   return initError?.message || null;
+}
+
+/** Ensure MySQL store is ready — retries connection on serverless cold starts */
+export async function ensureStoreReady() {
+  if (initialized) return true;
+  if (!hasDatabaseUrl()) return false;
+
+  if (!initPromise) {
+    initPromise = initStore().finally(() => {
+      initPromise = null;
+    });
+  }
+
+  await initPromise;
+  return initialized;
 }
 
 function saveLocalFile() {
@@ -242,12 +258,16 @@ async function persistSettings() {
 }
 
 async function persistDoc(collection, doc) {
-  if (!initialized) {
-    if (hasDatabaseUrl()) {
-      throw new Error('Database not initialized — cannot save data');
+  if (hasDatabaseUrl()) {
+    const ready = await ensureStoreReady();
+    if (!ready) {
+      const detail = getStoreError() || 'Database connection failed';
+      throw new Error(`Database not initialized — cannot save data: ${detail}`);
     }
+  } else if (!initialized) {
     return;
   }
+
   try {
     switch (collection) {
       case 'users':
@@ -324,12 +344,16 @@ async function persistDoc(collection, doc) {
 }
 
 async function persistDelete(collection, id) {
-  if (!initialized) {
-    if (hasDatabaseUrl()) {
-      throw new Error('Database not initialized — cannot delete data');
+  if (hasDatabaseUrl()) {
+    const ready = await ensureStoreReady();
+    if (!ready) {
+      const detail = getStoreError() || 'Database connection failed';
+      throw new Error(`Database not initialized — cannot delete data: ${detail}`);
     }
+  } else if (!initialized) {
     return;
   }
+
   try {
     const deletes = {
       users: () => prisma.user.delete({ where: { id } }),
@@ -373,23 +397,20 @@ export async function initStore() {
     initError = null;
     console.log('[store] Using MySQL for data storage');
   } catch (err) {
+    initialized = false;
     initError = err;
     setDatabaseError(err);
     console.error('[store] MySQL initialization failed:', err.message);
 
-    if (hasDatabaseUrl()) {
-      initialized = false;
-      return;
+    if (!hasDatabaseUrl()) {
+      console.warn('[store] Falling back to local db.json (no DATABASE_URL)');
+      ensureDir(DATA_DIR);
+      if (importFromJsonFile()) {
+        console.log('[store] Loaded data from db.json');
+      } else {
+        cache = structuredClone(defaultDb);
+      }
     }
-
-    console.warn('[store] Falling back to local db.json (no DATABASE_URL)');
-    ensureDir(DATA_DIR);
-    if (importFromJsonFile()) {
-      console.log('[store] Loaded data from db.json');
-    } else {
-      cache = structuredClone(defaultDb);
-    }
-    initialized = false;
   }
 }
 

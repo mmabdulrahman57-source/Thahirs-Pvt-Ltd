@@ -18,11 +18,10 @@ export default async function handler(req, res) {
     const app = await getApp();
     return app(req, res);
   } catch (err) {
-    console.error('Vercel API error:', err);
+    console.error('[vercel] API error:', err.message);
     if (!res.headersSent) {
       res.status(500).json({
-        message: 'Server error',
-        detail: process.env.NODE_ENV === 'development' ? err.message : undefined,
+        message: err.message || 'Server error',
       });
     }
   }

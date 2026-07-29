@@ -576,13 +576,14 @@ router.post('/backup/restore', (req, res) => {
 router.post('/upload/image', uploadImage.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No image file provided' });
-    const { uploadProductImage, isCloudinaryConfigured } = await import('../utils/cloudinary.js');
+
+    const { uploadProductImage, getCloudinaryStatus } = await import('../utils/cloudinary.js');
     const url = await uploadProductImage(req.file);
     logActivity('upload', `Image uploaded: ${url}`, req.user.id);
     res.json({
       url,
       filename: req.file.filename,
-      storage: isCloudinaryConfigured() ? 'cloudinary' : 'local',
+      storage: getCloudinaryStatus().configured ? 'cloudinary' : 'local',
     });
   } catch (err) {
     console.error('[upload] Image upload failed:', err.message);

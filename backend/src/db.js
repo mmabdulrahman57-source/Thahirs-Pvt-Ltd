@@ -12,16 +12,17 @@ const backendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 let lastError = null;
 let connected = false;
+let connectPromise = null;
 
-const databaseUrl = getDatabaseUrl();
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined,
+function createPrismaClient() {
+  const url = getDatabaseUrl();
+  return new PrismaClient({
+    datasources: url ? { db: { url } } : undefined,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
+}
 
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 globalForPrisma.prisma = prisma;
 
 function isMissingTableError(err) {
@@ -30,7 +31,7 @@ function isMissingTableError(err) {
     err?.code === 'P2021' ||
     msg.includes("doesn't exist") ||
     msg.includes('Unknown table') ||
-    msg.includes('Table') && msg.includes('not found')
+    (msg.includes('Table') && msg.includes('not found'))
   );
 }
 
@@ -43,9 +44,10 @@ export async function ensureDatabaseSchema() {
     if (!isMissingTableError(err)) throw err;
 
     console.log('[db] Tables missing — running prisma db push...');
+    const url = getDatabaseUrl() || process.env.DATABASE_URL?.trim();
     execSync('npx prisma db push --skip-generate --accept-data-loss', {
       cwd: backendRoot,
-      env: { ...process.env, DATABASE_URL: databaseUrl || process.env.DATABASE_URL },
+      env: { ...process.env, DATABASE_URL: url },
       stdio: 'pipe',
     });
     console.log('[db] Schema created successfully');
@@ -54,18 +56,39 @@ export async function ensureDatabaseSchema() {
 }
 
 export async function connectDB() {
-  if (!hasDatabaseUrl()) {
-    throw new Error('DATABASE_URL is not set');
-  }
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is invalid');
+  if (connected) return;
+
+  if (connectPromise) {
+    await connectPromise;
+    return;
   }
 
-  await prisma.$connect();
-  await ensureDatabaseSchema();
-  connected = true;
-  lastError = null;
-  console.log('[db] MySQL connected via Prisma');
+  connectPromise = (async () => {
+    if (!hasDatabaseUrl()) {
+      throw new Error('DATABASE_URL is not set');
+    }
+    const url = getDatabaseUrl();
+    if (!url) {
+      throw new Error('DATABASE_URL is invalid');
+    }
+
+    console.log('[db] Connecting to MySQL at', safeHost(url));
+    await prisma.$connect();
+    await ensureDatabaseSchema();
+    connected = true;
+    lastError = null;
+    console.log('[db] MySQL connected via Prisma');
+  })();
+
+  try {
+    await connectPromise;
+  } catch (err) {
+    connected = false;
+    lastError = err;
+    throw err;
+  } finally {
+    connectPromise = null;
+  }
 }
 
 export async function disconnectDB() {
@@ -77,17 +100,20 @@ export async function healthCheck() {
   if (!hasDatabaseUrl()) {
     throw new Error('DATABASE_URL is not set');
   }
+  await connectDB();
   await prisma.$queryRaw`SELECT 1`;
   const userCount = await prisma.user.count();
   return { connected: true, userCount };
 }
 
 export function getDatabaseStatus() {
+  const url = getDatabaseUrl();
   return {
     configured: hasDatabaseUrl(),
     connected,
     lastError: lastError?.message || null,
-    host: databaseUrl ? safeHost(databaseUrl) : null,
+    host: url ? safeHost(url) : null,
+    sslMode: url?.includes('accept_invalid_certs') ? 'accept_invalid_certs' : null,
   };
 }
 
@@ -99,4 +125,8 @@ function safeHost(url) {
 export function setDatabaseError(err) {
   lastError = err;
   connected = false;
+}
+
+export function isDatabaseConnected() {
+  return connected;
 }

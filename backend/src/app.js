@@ -12,7 +12,7 @@ import { initStore, isStoreReady, getStoreError } from './jsonStore.js';
 import { UPLOAD_ROOT } from './utils/upload.js';
 import { getDatabaseStatus, healthCheck } from './db.js';
 import { hasDatabaseUrl } from './utils/dbUrl.js';
-import { isCloudinaryConfigured } from './utils/cloudinary.js';
+import { getCloudinaryStatus } from './utils/cloudinary.js';
 
 dotenv.config();
 
@@ -51,12 +51,13 @@ export async function createApp() {
 
   app.get('/api/health', async (_, res) => {
     const dbStatus = getDatabaseStatus();
+    const cloudStatus = getCloudinaryStatus();
     const payload = {
       status: 'ok',
       company: 'THAHIRS (PVT) LTD',
       storeReady: isStoreReady(),
       database: isStoreReady() ? 'mysql' : (hasDatabaseUrl() ? 'disconnected' : 'json-fallback'),
-      cloudinary: isCloudinaryConfigured(),
+      cloudinary: cloudStatus,
       ...dbStatus,
       storeError: getStoreError(),
     };
@@ -65,7 +66,7 @@ export async function createApp() {
       return res.status(503).json({
         ...payload,
         status: 'degraded',
-        hint: 'Check DATABASE_URL credentials and SSL settings for Clever Cloud MySQL',
+        hint: 'Check DATABASE_URL — use MYSQL_ADDON_URI from Clever Cloud. SSL uses accept_invalid_certs automatically.',
       });
     }
 
@@ -82,8 +83,12 @@ export async function createApp() {
     }
   });
 
-  await initStore();
-  await seedIfEmpty();
+  try {
+    await initStore();
+    await seedIfEmpty();
+  } catch (err) {
+    console.error('[app] Startup store/seed failed:', err.message);
+  }
 
   app.use('/api/auth', authRoutes);
   app.use('/api/products', productRoutes);

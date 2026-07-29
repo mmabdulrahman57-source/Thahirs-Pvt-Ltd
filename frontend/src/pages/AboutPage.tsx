@@ -5,6 +5,8 @@ import { COMPANY, TIMELINE, CORE_VALUES } from '../data/company';
 import { getTeam } from '../lib/api';
 import { Mail, Globe } from 'lucide-react';
 import founderPhoto from '../assets/founder.png';
+import deenPhoto from '../assets/deen.png';
+import kamalPhoto from '../assets/kamal.png';
 
 function teamPhotoSrc(url?: string) {
   if (!url) return '';
@@ -84,23 +86,31 @@ export default function AboutPage() {
       <section className="section-padding bg-light dark:bg-charcoal/50">
         <div className="container-custom grid md:grid-cols-2 gap-8">
           <FadeIn>
-            <div className="glass rounded-2xl p-8 h-full">
-              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xl mb-4">D</div>
+            <div className="glass rounded-2xl overflow-hidden h-full">
+              <div className="overflow-hidden bg-[#1e4a8a]">
+                <img src={deenPhoto} alt="M.T.M.S. Deen, Chairman" className="w-full h-auto block" />
+              </div>
+              <div className="p-8">
               <h3 className="font-bold text-xl">M.T.M.S. Deen</h3>
               <p className="text-primary text-sm mb-4">Chairman · 30 years experience in Industrial Hardware</p>
               <p className="text-charcoal/70 dark:text-white/70 leading-relaxed text-sm">
                 It is with great pleasure that I welcome you to THAHIRS (PVT) LIMITED web site. Our clients are the reason we exist, and we strive to serve them better. Being one of the pioneers in Hardware trade since 1949, THAHIRS finds itself at the forefront in the field of Industrial Hardware. I hope this site provides information on the range of products that we offer and enlightens you on the latest technology and equipment in the market.
               </p>
+              </div>
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
-            <div className="glass rounded-2xl p-8 h-full">
-              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xl mb-4">K</div>
+            <div className="glass rounded-2xl overflow-hidden h-full">
+              <div className="overflow-hidden bg-[#1e4a8a]">
+                <img src={kamalPhoto} alt="M.T.M. Kamal Pasha, Managing Director" className="w-full h-auto block" />
+              </div>
+              <div className="p-8">
               <h3 className="font-bold text-xl">M.T.M. Kamal Pasha</h3>
               <p className="text-primary text-sm mb-4">Managing Director · Dip. In BM (NIBM)</p>
               <p className="text-charcoal/70 dark:text-white/70 leading-relaxed text-sm">
                 Welcome to the premier Industrial Hardware web site in Sri Lanka. One stop destination for full and complete range of Industrial Hardware. Flexible and dependable with over 50 years experience retaining the traditional values of an old hardware store. We will sell you even one screw if that is all you require or sell you complete plumbing needs for your Project.
               </p>
+              </div>
             </div>
           </FadeIn>
         </div>

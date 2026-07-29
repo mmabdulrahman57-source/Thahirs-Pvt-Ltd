@@ -572,6 +572,18 @@ router.post('/backup/restore', (req, res) => {
   }
 });
 
+// ─── CLOUDINARY DIAGNOSTICS ───
+router.get('/cloudinary/test', async (req, res) => {
+  try {
+    const { runCloudinaryDiagnostics } = await import('../utils/cloudinary.js');
+    const result = await runCloudinaryDiagnostics();
+    res.json(result);
+  } catch (err) {
+    console.error('[cloudinary] Diagnostic failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── IMAGE UPLOAD ───
 router.post('/upload/image', (req, res, next) => {
   uploadImage.single('image')(req, res, (err) => {

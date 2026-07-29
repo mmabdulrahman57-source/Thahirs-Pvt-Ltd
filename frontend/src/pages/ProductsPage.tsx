@@ -4,6 +4,7 @@ import { Search, Filter, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { FadeIn } from '../components/ui/AnimatedCounter';
 import PageHero from '../components/ui/PageHero';
+import productsHeroImg from '../assets/products-hero.png';
 import { getProducts, getCategories, getBrands } from '../lib/api';
 import { useQuotation } from '../context/QuotationContext';
 import { ProductCardSkeleton } from '../components/ui/Skeleton';
@@ -51,7 +52,8 @@ export default function ProductsPage() {
       <PageHero
         title="Product Catalogue"
         subtitle="Complete range of industrial hardware from world-class brands"
-        image="https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=1600&q=80"
+        image={productsHeroImg}
+        imagePosition="center right"
         breadcrumbs={[{ label: 'Home', to: '/' }, { label: 'Products' }]}
       />
 

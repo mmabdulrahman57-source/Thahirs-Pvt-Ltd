@@ -8,15 +8,22 @@ interface PageHeroProps {
   badge?: string;
   breadcrumbs?: Array<{ label: string; to?: string }>;
   image?: string;
+  imagePosition?: string;
   dark?: boolean;
 }
 
-export default function PageHero({ title, subtitle, badge, breadcrumbs, image, dark = true }: PageHeroProps) {
+export default function PageHero({ title, subtitle, badge, breadcrumbs, image, imagePosition = 'center', dark = true }: PageHeroProps) {
   return (
     <section className={`page-hero ${dark ? 'page-hero-gradient' : ''} relative`}>
       {image && (
         <>
-          <img src={image} alt="" className="absolute inset-0 w-full h-full object-cover" loading="eager" />
+          <img
+            src={image}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ objectPosition: imagePosition }}
+            loading="eager"
+          />
           <div className="page-hero-overlay" />
         </>
       )}

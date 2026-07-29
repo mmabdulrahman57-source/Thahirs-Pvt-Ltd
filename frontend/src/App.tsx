@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { QuotationProvider } from './context/QuotationContext';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/layout/Layout';
+import ScrollToTop from './components/ScrollToTop';
 import { PageLoader } from './components/ui/Skeleton';
 import HomePage from './pages/HomePage';
 
@@ -37,6 +38,7 @@ export default function App() {
       <AuthProvider>
         <QuotationProvider>
           <BrowserRouter>
+            <ScrollToTop />
             <Routes>
               <Route path="/login" element={<Lazy><LoginPage /></Lazy>} />
               <Route element={<Layout />}>

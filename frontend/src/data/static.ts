@@ -17,11 +17,7 @@ export const STATIC_BRANDS = [
   { _id: '1', name: 'Toyo Valve', country: 'Japan' },
   { _id: '2', name: 'Miyawaki', country: 'Japan' },
   { _id: '3', name: 'Izocam', country: 'Turkey' },
-  { _id: '4', name: 'Bonezzi', country: 'Italy' },
   { _id: '5', name: 'Saginomiya', country: 'Japan' },
-  { _id: '6', name: 'Syddal', country: 'UK' },
   { _id: '7', name: 'Empeo', country: 'Germany' },
-  { _id: '8', name: 'Shandong Ductile', country: 'China' },
   { _id: '9', name: 'Sanwa', country: 'Japan' },
-  { _id: '10', name: 'Asahi', country: 'Japan' },
 ];

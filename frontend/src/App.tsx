@@ -6,8 +6,8 @@ import { QuotationProvider } from './context/QuotationContext';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/layout/Layout';
 import { PageLoader } from './components/ui/Skeleton';
+import HomePage from './pages/HomePage';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
@@ -40,7 +40,7 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Lazy><LoginPage /></Lazy>} />
               <Route element={<Layout />}>
-                <Route index element={<Lazy><HomePage /></Lazy>} />
+                <Route index element={<HomePage />} />
                 <Route path="about" element={<Lazy><AboutPage /></Lazy>} />
                 <Route path="products" element={<Lazy><ProductsPage /></Lazy>} />
                 <Route path="products/:slug" element={<Lazy><ProductDetailPage /></Lazy>} />

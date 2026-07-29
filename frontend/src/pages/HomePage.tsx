@@ -10,6 +10,7 @@ import BrandsMarquee from '../components/home/BrandsMarquee';
 import since1949Img from '../assets/since-1949.png';
 import { AnimatedCounter, FadeIn, SectionTitle } from '../components/ui/AnimatedCounter';
 import { HIGHLIGHTS, WHY_CHOOSE, INDUSTRIES, FAQ } from '../data/company';
+import { STATIC_CATEGORIES, STATIC_BRANDS } from '../data/static';
 import { getCategories, getBrands, getTestimonials, getProjects } from '../lib/api';
 
 const iconMap: Record<string, ComponentType<{ size?: number; className?: string }>> = {
@@ -30,17 +31,19 @@ const industryIcons: Record<string, ComponentType<{ size?: number; className?: s
 };
 
 export default function HomePage() {
-  const [categories, setCategories] = useState<Array<{ _id: string; name: string; slug: string; icon?: string; description?: string }>>([]);
-  const [brands, setBrands] = useState<Array<{ _id: string; name: string; country?: string }>>([]);
+  const [categories, setCategories] = useState(STATIC_CATEGORIES);
+  const [brands, setBrands] = useState(STATIC_BRANDS);
   const [testimonials, setTestimonials] = useState<Array<{ _id: string; name: string; company?: string; content: string; rating: number }>>([]);
   const [projects, setProjects] = useState<Array<{ _id: string; title: string; description?: string; industry?: string; images?: string[] }>>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(() => {});
-    getBrands().then(setBrands).catch(() => {});
-    getTestimonials().then(setTestimonials).catch(() => {});
-    getProjects().then(setProjects).catch(() => {});
+    Promise.all([
+      getCategories().then(setCategories).catch(() => {}),
+      getBrands().then(setBrands).catch(() => {}),
+      getTestimonials().then(setTestimonials).catch(() => {}),
+      getProjects().then(setProjects).catch(() => {}),
+    ]);
   }, []);
 
   return (

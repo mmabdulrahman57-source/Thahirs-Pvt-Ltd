@@ -33,7 +33,7 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Array<{ _id: string; name: string; slug: string; icon?: string; description?: string }>>([]);
   const [brands, setBrands] = useState<Array<{ _id: string; name: string; country?: string }>>([]);
   const [testimonials, setTestimonials] = useState<Array<{ _id: string; name: string; company?: string; content: string; rating: number }>>([]);
-  const [projects, setProjects] = useState<Array<{ _id: string; title: string; description?: string; industry?: string }>>([]);
+  const [projects, setProjects] = useState<Array<{ _id: string; title: string; description?: string; industry?: string; images?: string[] }>>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
@@ -196,9 +196,17 @@ export default function HomePage() {
               {projects.slice(0, 4).map((p, i) => (
                 <FadeIn key={p._id} delay={i * 0.1}>
                   <div className="rounded-2xl overflow-hidden shadow-lg card-hover bg-white dark:bg-charcoal">
-                    <div className="h-48 bg-gradient-to-br from-primary/20 to-charcoal/20 flex items-center justify-center">
-                      <Settings size={48} className="text-primary/50" />
-                    </div>
+                    {p.images?.[0] ? (
+                      <img
+                        src={p.images[0]}
+                        alt={p.title}
+                        className="h-48 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-48 bg-gradient-to-br from-primary/20 to-charcoal/20 flex items-center justify-center">
+                        <Settings size={48} className="text-primary/50" />
+                      </div>
+                    )}
                     <div className="p-5">
                       <span className="text-xs text-primary font-semibold">{p.industry}</span>
                       <h3 className="font-bold mt-1">{p.title}</h3>

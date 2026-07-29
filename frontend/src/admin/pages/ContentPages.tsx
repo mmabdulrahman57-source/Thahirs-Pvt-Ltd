@@ -77,14 +77,34 @@ export const TeamAdminPage = () => (
 export const ProjectsAdminPage = () => (
   <GenericCrudPage resource="projects" title="Projects"
     fields={[
+      {
+        key: 'image',
+        label: 'Project Image',
+        type: 'image',
+        storeAs: 'images',
+        storeAsArray: true,
+        uploadFolder: 'projects',
+        placeholderIcon: 'image',
+      },
       { key: 'title', label: 'Project Title', required: true },
       { key: 'clientName', label: 'Client Name' },
       { key: 'description', label: 'Description', type: 'textarea' },
       { key: 'industry', label: 'Industry' },
       { key: 'location', label: 'Location' },
-      { key: 'status', label: 'Status', type: 'select', options: ['completed', 'ongoing', 'planned'] },
+      { key: 'status', label: 'Status', type: 'select', options: ['completed', 'ongoing', 'planned', 'pending'] },
     ]}
     columns={[
+      {
+        key: 'images',
+        label: 'Image',
+        render: i => {
+          const images = i.images as string[] | undefined;
+          const src = images?.[0] ? resolvePhotoSrc(String(images[0])) : '';
+          return src
+            ? <img src={src} alt="" className="w-12 h-12 rounded-lg object-cover border border-steel/20" />
+            : <span className="text-charcoal/40">—</span>;
+        },
+      },
       { key: 'title', label: 'Project' },
       { key: 'industry', label: 'Industry' },
       { key: 'status', label: 'Status', render: i => <StatusBadge status={i.status as string} /> },

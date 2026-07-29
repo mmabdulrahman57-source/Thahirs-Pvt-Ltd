@@ -61,9 +61,9 @@ export const adminBackups = () => admin('/backups');
 export const adminLogs = () => admin('/logs');
 export const adminLoginLogs = () => admin('/logs/login');
 
-export const adminUploadImage = (file: File) => {
+export const adminUploadImage = (file: File, folder?: 'products' | 'projects') => {
   const form = new FormData();
   form.append('image', file);
-  // Do not set Content-Type — axios must add the multipart boundary automatically
-  return api.post('/admin/upload/image', form).then(r => r.data as { url: string; filename: string });
+  const params = folder ? { folder } : undefined;
+  return api.post('/admin/upload/image', form, { params }).then(r => r.data as { url: string; filename: string });
 };

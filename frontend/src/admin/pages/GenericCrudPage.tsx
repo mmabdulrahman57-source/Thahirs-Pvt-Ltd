@@ -7,7 +7,18 @@ import { PageHeader, Modal, EmptyState } from '../components/shared';
 import PhotoField from '../components/PhotoField';
 import AdminSearchBar from '../components/SearchBar';
 
-interface Field { key: string; label: string; type?: string; required?: boolean; options?: string[] }
+interface Field {
+  key: string;
+  label: string;
+  type?: string;
+  required?: boolean;
+  options?: string[];
+  /** Save image URL under a different field (e.g. images array) */
+  storeAs?: string;
+  storeAsArray?: boolean;
+  uploadFolder?: 'products' | 'projects';
+  placeholderIcon?: 'user' | 'image';
+}
 
 interface Props {
   resource: string;
@@ -35,7 +46,18 @@ export default function GenericCrudPage({ resource, title, fields, columns }: Pr
   const openEdit = (item: Record<string, unknown>) => {
     setEditItem(item);
     const f: Record<string, string> = {};
-    fields.forEach(field => { f[field.key] = String(item[field.key] ?? ''); });
+    fields.forEach(field => {
+      if (field.type === 'image' && field.storeAs) {
+        const stored = item[field.storeAs];
+        if (field.storeAsArray && Array.isArray(stored)) {
+          f[field.key] = String(stored[0] ?? '');
+        } else {
+          f[field.key] = String(stored ?? '');
+        }
+      } else {
+        f[field.key] = String(item[field.key] ?? '');
+      }
+    });
     setForm(f);
     setModal(true);
   };
@@ -46,6 +68,11 @@ export default function GenericCrudPage({ resource, title, fields, columns }: Pr
       fields.forEach(f => {
         if (f.type === 'number') data[f.key] = parseFloat(form[f.key]) || 0;
         if (f.type === 'checkbox') data[f.key] = form[f.key] === 'true';
+        if (f.type === 'image' && f.storeAs) {
+          const url = form[f.key]?.trim();
+          data[f.storeAs] = f.storeAsArray ? (url ? [url] : []) : url;
+          delete data[f.key];
+        }
       });
       if (editItem) await adminUpdate(resource, editItem._id as string, data);
       else await adminCreate(resource, data);
@@ -118,6 +145,8 @@ export default function GenericCrudPage({ resource, title, fields, columns }: Pr
                   label={f.label}
                   value={form[f.key] || ''}
                   onChange={url => setForm({ ...form, [f.key]: url })}
+                  uploadFolder={f.uploadFolder}
+                  placeholderIcon={f.placeholderIcon}
                 />
               ) : (
                 <>

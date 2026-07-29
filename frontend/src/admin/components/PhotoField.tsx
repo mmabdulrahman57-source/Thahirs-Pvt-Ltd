@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link2, Upload, Trash2, Loader2, User } from 'lucide-react';
+import { Link2, Upload, Trash2, Loader2, User, ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminUploadImage } from '../api';
 
@@ -13,9 +13,11 @@ interface PhotoFieldProps {
   value: string;
   onChange: (url: string) => void;
   label?: string;
+  uploadFolder?: 'products' | 'projects';
+  placeholderIcon?: 'user' | 'image';
 }
 
-export default function PhotoField({ value, onChange, label = 'Photo' }: PhotoFieldProps) {
+export default function PhotoField({ value, onChange, label = 'Photo', uploadFolder, placeholderIcon = 'user' }: PhotoFieldProps) {
   const [mode, setMode] = useState<'url' | 'upload'>('upload');
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -35,7 +37,7 @@ export default function PhotoField({ value, onChange, label = 'Photo' }: PhotoFi
     if (!file.type.startsWith('image/')) return toast.error('Please select an image file');
     setUploading(true);
     try {
-      const { url } = await adminUploadImage(file);
+      const { url } = await adminUploadImage(file, uploadFolder);
       onChange(url);
       toast.success('Photo uploaded');
     } catch {
@@ -69,7 +71,11 @@ export default function PhotoField({ value, onChange, label = 'Photo' }: PhotoFi
         </div>
       ) : (
         <div className="w-32 h-32 mx-auto mb-4 rounded-xl bg-primary/10 flex items-center justify-center border border-dashed border-steel/30">
-          <User size={40} className="text-primary/40" />
+          {placeholderIcon === 'image' ? (
+            <ImageIcon size={40} className="text-primary/40" />
+          ) : (
+            <User size={40} className="text-primary/40" />
+          )}
         </div>
       )}
 

@@ -190,7 +190,7 @@ export async function runCloudinaryDiagnostics() {
   return { ...status, ping: ping ?? pingError, upload };
 }
 
-export async function uploadProductImage(multerFile) {
+export async function uploadImage(multerFile, { folder = 'thahirs/products' } = {}) {
   if (!multerFile) throw new Error('No file provided');
 
   if (!isCloudinaryConfigured()) {
@@ -224,11 +224,12 @@ export async function uploadProductImage(multerFile) {
     size: fileStat.size,
     cloudName: creds.cloud_name,
     apiKey: creds.api_key,
+    folder,
   });
 
   try {
     const result = await cloudinary.uploader.upload(path, {
-      folder: 'thahirs/products',
+      folder,
       resource_type: 'image',
     });
 
@@ -239,7 +240,7 @@ export async function uploadProductImage(multerFile) {
     console.log('[cloudinary] Upload OK:', result.public_id);
     return result.secure_url;
   } catch (err) {
-    logCloudinaryError('uploadProductImage', err);
+    logCloudinaryError('uploadImage', err);
     throw formatCloudinaryError(err);
   } finally {
     cleanup();
@@ -247,4 +248,9 @@ export async function uploadProductImage(multerFile) {
       try { unlinkSync(multerFile.path); } catch { /* ignore */ }
     }
   }
+}
+
+/** @deprecated Use uploadImage */
+export async function uploadProductImage(multerFile) {
+  return uploadImage(multerFile, { folder: 'thahirs/products' });
 }

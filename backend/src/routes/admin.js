@@ -607,8 +607,9 @@ router.post('/upload/image', (req, res, next) => {
       path: req.file.path || null,
     });
 
-    const { uploadProductImage, getCloudinaryStatus } = await import('../utils/cloudinary.js');
-    const url = await uploadProductImage(req.file);
+    const { uploadImage, getCloudinaryStatus } = await import('../utils/cloudinary.js');
+    const folder = req.query.folder === 'projects' ? 'thahirs/projects' : 'thahirs/products';
+    const url = await uploadImage(req.file, { folder });
     logActivity('upload', `Image uploaded: ${url}`, req.user.id);
     res.json({
       url,

@@ -1,6 +1,6 @@
+import './env.js';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import quotationRoutes from './routes/quotations.js';
@@ -12,9 +12,8 @@ import { initStore, isStoreReady, getStoreError } from './jsonStore.js';
 import { UPLOAD_ROOT } from './utils/upload.js';
 import { getDatabaseStatus, healthCheck } from './db.js';
 import { hasDatabaseUrl } from './utils/dbUrl.js';
-import { getCloudinaryStatus } from './utils/cloudinary.js';
-
-dotenv.config();
+import { getCloudinaryStatus, logCloudinaryStartup } from './utils/cloudinary.js';
+import { initEnv } from './env.js';
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
@@ -56,7 +55,7 @@ export async function createApp() {
       status: 'ok',
       company: 'THAHIRS (PVT) LTD',
       storeReady: isStoreReady(),
-      database: isStoreReady() ? 'mysql' : (hasDatabaseUrl() ? 'disconnected' : 'json-fallback'),
+      database: isStoreReady() ? 'mysql' : 'disconnected',
       cloudinary: cloudStatus,
       ...dbStatus,
       storeError: getStoreError(),
@@ -83,11 +82,15 @@ export async function createApp() {
     }
   });
 
+  initEnv();
+  logCloudinaryStartup();
+
   try {
     await initStore();
     await seedIfEmpty();
   } catch (err) {
-    console.error('[app] Startup store/seed failed:', err.message);
+    console.error('[app] Startup failed:', err.message);
+    throw err;
   }
 
   app.use('/api/auth', authRoutes);

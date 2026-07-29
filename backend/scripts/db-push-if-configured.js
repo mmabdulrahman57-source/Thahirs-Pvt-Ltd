@@ -1,13 +1,12 @@
 import { execSync } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import '../src/env.js';
+import { getDatabaseUrl } from '../src/utils/dbUrl.js';
 
 const backendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-if (!process.env.DATABASE_URL?.trim()) {
+if (!getDatabaseUrl()) {
   console.log('[db] Skipping db push — DATABASE_URL not set');
   process.exit(0);
 }
@@ -18,7 +17,7 @@ try {
   execSync('npx prisma db push --skip-generate --accept-data-loss', {
     cwd: backendRoot,
     stdio: 'inherit',
-    env: process.env,
+    env: { ...process.env, DATABASE_URL: getDatabaseUrl() },
   });
   console.log('[db] Schema push completed');
 } catch (err) {

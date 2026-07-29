@@ -1,3 +1,4 @@
+import '../backend/src/env.js';
 import { createApp } from '../backend/src/app.js';
 
 let appPromise;

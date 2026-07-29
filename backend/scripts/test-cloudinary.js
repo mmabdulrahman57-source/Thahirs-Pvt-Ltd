@@ -1,14 +1,10 @@
 /**
- * Local Cloudinary diagnostic — run: node scripts/test-cloudinary.js
- * Requires backend/.env with valid Cloudinary credentials.
+ * Local Cloudinary diagnostic — run: npm run test:cloudinary
  */
-import dotenv from 'dotenv';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import '../src/env.js';
+import { runCloudinaryDiagnostics, logCloudinaryStartup } from '../src/utils/cloudinary.js';
 
-dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '../.env'), override: true });
-
-const { runCloudinaryDiagnostics } = await import('../src/utils/cloudinary.js');
+logCloudinaryStartup();
 const result = await runCloudinaryDiagnostics();
 console.log(JSON.stringify(result, null, 2));
 process.exit(result.upload?.ok ? 0 : 1);

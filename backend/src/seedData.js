@@ -52,7 +52,7 @@ const productTemplates = [
 export async function seedIfEmpty() {
   if (User.countDocuments() > 0) return;
   console.log('[seed] Seeding MySQL database...');
-  resetDb();
+  await resetDb();
 
   const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
   await User.create({ name: 'Admin', email: process.env.ADMIN_EMAIL || 'admin@thahirsgroup.com', password: hashedPassword, role: 'admin', adminRole: 'super_admin' });

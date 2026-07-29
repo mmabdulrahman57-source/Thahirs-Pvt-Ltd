@@ -1,11 +1,10 @@
-import dotenv from 'dotenv';
+import './env.js';
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { getDatabaseUrl, hasDatabaseUrl } from './utils/dbUrl.js';
-
-dotenv.config();
+import { getDatabaseUrl } from './utils/dbUrl.js';
+import { requireDatabaseUrl } from './env.js';
 
 const globalForPrisma = globalThis;
 const backendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,17 +12,31 @@ const backendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 let lastError = null;
 let connected = false;
 let connectPromise = null;
+let prismaInstance = globalForPrisma.prisma ?? null;
 
 function createPrismaClient() {
-  const url = getDatabaseUrl();
+  const url = getDatabaseUrl() || requireDatabaseUrl();
   return new PrismaClient({
-    datasources: url ? { db: { url } } : undefined,
+    datasources: { db: { url } },
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-globalForPrisma.prisma = prisma;
+export function getPrisma() {
+  if (!prismaInstance) {
+    prismaInstance = createPrismaClient();
+    globalForPrisma.prisma = prismaInstance;
+  }
+  return prismaInstance;
+}
+
+export const prisma = new Proxy({}, {
+  get(_target, prop) {
+    const client = getPrisma();
+    const value = client[prop];
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
 
 function isMissingTableError(err) {
   const msg = String(err?.message || '');
@@ -44,7 +57,7 @@ export async function ensureDatabaseSchema() {
     if (!isMissingTableError(err)) throw err;
 
     console.log('[db] Tables missing — running prisma db push...');
-    const url = getDatabaseUrl() || process.env.DATABASE_URL?.trim();
+    const url = getDatabaseUrl() || requireDatabaseUrl();
     execSync('npx prisma db push --skip-generate --accept-data-loss', {
       cwd: backendRoot,
       env: { ...process.env, DATABASE_URL: url },
@@ -53,6 +66,10 @@ export async function ensureDatabaseSchema() {
     console.log('[db] Schema created successfully');
     return true;
   }
+}
+
+export async function testDatabaseConnection() {
+  await prisma.$queryRaw`SELECT 1`;
 }
 
 export async function connectDB() {
@@ -64,44 +81,42 @@ export async function connectDB() {
   }
 
   connectPromise = (async () => {
-    if (!hasDatabaseUrl()) {
-      throw new Error('DATABASE_URL is not set');
-    }
-    const url = getDatabaseUrl();
-    if (!url) {
-      throw new Error('DATABASE_URL is invalid');
-    }
+    const url = getDatabaseUrl() || requireDatabaseUrl();
 
     console.log('[db] Connecting to MySQL at', safeHost(url));
-    await prisma.$connect();
-    await ensureDatabaseSchema();
-    connected = true;
-    lastError = null;
-    console.log('[db] MySQL connected via Prisma');
+    try {
+      await prisma.$connect();
+      await ensureDatabaseSchema();
+      await testDatabaseConnection();
+      connected = true;
+      lastError = null;
+      console.log('[db] Database Connected');
+    } catch (err) {
+      connected = false;
+      lastError = err;
+      console.error('[db] Database Connection Failed:', err.message);
+      throw err;
+    }
   })();
 
   try {
     await connectPromise;
-  } catch (err) {
-    connected = false;
-    lastError = err;
-    throw err;
   } finally {
     connectPromise = null;
   }
 }
 
 export async function disconnectDB() {
-  await prisma.$disconnect();
+  if (prismaInstance) {
+    await prismaInstance.$disconnect();
+  }
   connected = false;
 }
 
 export async function healthCheck() {
-  if (!hasDatabaseUrl()) {
-    throw new Error('DATABASE_URL is not set');
-  }
+  requireDatabaseUrl();
   await connectDB();
-  await prisma.$queryRaw`SELECT 1`;
+  await testDatabaseConnection();
   const userCount = await prisma.user.count();
   return { connected: true, userCount };
 }
@@ -109,7 +124,7 @@ export async function healthCheck() {
 export function getDatabaseStatus() {
   const url = getDatabaseUrl();
   return {
-    configured: hasDatabaseUrl(),
+    configured: Boolean(url),
     connected,
     lastError: lastError?.message || null,
     host: url ? safeHost(url) : null,

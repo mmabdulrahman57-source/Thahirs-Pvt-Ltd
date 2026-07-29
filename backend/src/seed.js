@@ -1,10 +1,8 @@
-import dotenv from 'dotenv';
+import './env.js';
 import { disconnectDB } from './db.js';
 import { initStore } from './jsonStore.js';
 import { seedIfEmpty } from './seedData.js';
 import { runDailyBackup } from './utils/backup.js';
-
-dotenv.config();
 
 async function seed() {
   await initStore();

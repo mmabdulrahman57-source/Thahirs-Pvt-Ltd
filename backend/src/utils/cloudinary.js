@@ -1,3 +1,4 @@
+import '../env.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { existsSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -8,43 +9,97 @@ function env(name) {
   return process.env[name]?.trim() || '';
 }
 
-export function isCloudinaryConfigured() {
-  if (env('CLOUDINARY_URL')) return true;
-  return Boolean(
-    env('CLOUDINARY_CLOUD_NAME') &&
-    env('CLOUDINARY_API_KEY') &&
-    env('CLOUDINARY_API_SECRET')
-  );
-}
-
-/**
- * Official Cloudinary Node SDK configuration only.
- * Supports CLOUDINARY_URL or separate env vars — no manual signatures.
- */
-export function configureCloudinary() {
-  const cloudinaryUrl = env('CLOUDINARY_URL');
-  if (cloudinaryUrl) {
-    process.env.CLOUDINARY_URL = cloudinaryUrl;
-    cloudinary.config({ secure: true });
-    return;
-  }
-
-  cloudinary.config({
+function resolveCredentials() {
+  const explicit = {
     cloud_name: env('CLOUDINARY_CLOUD_NAME'),
     api_key: env('CLOUDINARY_API_KEY'),
     api_secret: env('CLOUDINARY_API_SECRET'),
+  };
+
+  if (explicit.cloud_name && explicit.api_key && explicit.api_secret) {
+    // Prefer explicit vars — ignore stale CLOUDINARY_URL from Vercel cache
+    if (process.env.CLOUDINARY_URL) {
+      delete process.env.CLOUDINARY_URL;
+    }
+    return { source: 'env_vars', ...explicit };
+  }
+
+  const url = env('CLOUDINARY_URL');
+  if (url) {
+    const match = url.match(/^cloudinary:\/\/([^:]+):([^@]+)@([^/?]+)/);
+    if (match) {
+      return {
+        source: 'CLOUDINARY_URL',
+        api_key: decodeURIComponent(match[1]),
+        api_secret: decodeURIComponent(match[2]),
+        cloud_name: match[3],
+      };
+    }
+  }
+
+  return { source: 'none', cloud_name: '', api_key: '', api_secret: '' };
+}
+
+export function validateCloudinaryApiKey(apiKey) {
+  if (!apiKey) return { valid: false, reason: 'CLOUDINARY_API_KEY is not set' };
+  return { valid: true };
+}
+
+export function isCloudinaryConfigured() {
+  const creds = resolveCredentials();
+  return Boolean(creds.cloud_name && creds.api_key && creds.api_secret);
+}
+
+/**
+ * Official Cloudinary Node SDK only — no manual signatures, presets, or fetch uploads.
+ * Prefer explicit env vars over CLOUDINARY_URL to avoid stale cached URLs on Vercel.
+ */
+export function configureCloudinary() {
+  const creds = resolveCredentials();
+
+  if (!creds.api_key || !creds.api_secret || !creds.cloud_name) {
+    throw new Error('Cloudinary is not configured');
+  }
+
+  cloudinary.config({
+    cloud_name: creds.cloud_name,
+    api_key: creds.api_key,
+    api_secret: creds.api_secret,
     secure: true,
   });
+
+  return creds;
 }
 
 export function getCloudinaryStatus() {
+  const creds = resolveCredentials();
+  const validation = validateCloudinaryApiKey(creds.api_key);
   return {
     configured: isCloudinaryConfigured(),
-    usingUrl: Boolean(env('CLOUDINARY_URL')),
-    cloudName: env('CLOUDINARY_CLOUD_NAME') || null,
-    apiKey: env('CLOUDINARY_API_KEY') || null,
-    hasApiSecret: Boolean(env('CLOUDINARY_API_SECRET')),
+    source: creds.source,
+    cloudName: creds.cloud_name || null,
+    apiKey: creds.api_key || null,
+    hasApiSecret: Boolean(creds.api_secret),
+    keyValid: validation.valid,
+    keyWarning: validation.valid ? null : validation.reason,
   };
+}
+
+/** Log loaded API key at startup (never logs secret) */
+export function logCloudinaryStartup() {
+  const status = getCloudinaryStatus();
+  console.log('[cloudinary] Startup configuration:', {
+    source: status.source,
+    cloudName: status.cloudName,
+    apiKey: status.apiKey,
+    hasApiSecret: status.hasApiSecret,
+  });
+
+  if (status.keyWarning) {
+    console.error('[cloudinary] API key issue:', status.keyWarning);
+  }
+
+  return status;
 }
 
 function logCloudinaryError(context, err) {
@@ -62,12 +117,27 @@ function logCloudinaryError(context, err) {
 function formatCloudinaryError(err) {
   const httpCode = err?.http_code ?? err?.error?.http_code;
   const message = err?.message ?? err?.error?.message ?? String(err);
+  const creds = resolveCredentials();
+  const validation = validateCloudinaryApiKey(creds.api_key);
 
-  if (httpCode === 403) {
-    return `Cloudinary upload forbidden (403). Ping succeeds but upload is denied for API key ${env('CLOUDINARY_API_KEY')}. Use the Primary API key in Cloudinary Dashboard → Settings → Access Keys, or enable Upload permission on this key.`;
+  if (!validation.valid) {
+    const error = new Error(validation.reason);
+    error.httpCode = 503;
+    return error;
   }
 
-  return httpCode ? `Cloudinary error ${httpCode}: ${message}` : message;
+  if (httpCode === 403) {
+    const error = new Error(
+      `Ping succeeds but upload is denied for API key ${creds.api_key}. Enable Upload permission for this key in Cloudinary Dashboard → Settings → Access Keys.`
+    );
+    error.httpCode = 403;
+    error.cloudinary = { apiKey: creds.api_key, cloudName: creds.cloud_name };
+    return error;
+  }
+
+  const error = new Error(httpCode ? `Cloudinary error ${httpCode}: ${message}` : message);
+  error.httpCode = httpCode || 502;
+  return error;
 }
 
 export async function verifyCloudinaryConnection() {
@@ -75,7 +145,6 @@ export async function verifyCloudinaryConnection() {
   return cloudinary.api.ping();
 }
 
-/** Run ping + tiny upload test for production diagnostics */
 export async function runCloudinaryDiagnostics() {
   const status = getCloudinaryStatus();
   if (!status.configured) {
@@ -109,11 +178,11 @@ export async function runCloudinaryDiagnostics() {
     if (result.public_id) {
       try {
         await cloudinary.uploader.destroy(result.public_id, { resource_type: 'image' });
-      } catch { /* ignore cleanup failure */ }
+      } catch { /* ignore */ }
     }
   } catch (err) {
     const details = logCloudinaryError('upload', err);
-    upload = { ok: false, error: formatCloudinaryError(err), details };
+    upload = { ok: false, error: formatCloudinaryError(err).message, details };
   } finally {
     try { unlinkSync(testPath); } catch { /* ignore */ }
   }
@@ -125,10 +194,17 @@ export async function uploadProductImage(multerFile) {
   if (!multerFile) throw new Error('No file provided');
 
   if (!isCloudinaryConfigured()) {
-    if (process.env.VERCEL) {
-      throw new Error('Cloudinary is not configured. Set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME + CLOUDINARY_API_KEY + CLOUDINARY_API_SECRET in Vercel.');
-    }
-    return `/uploads/products/${multerFile.filename || 'local-image.jpg'}`;
+    throw new Error(
+      process.env.VERCEL
+        ? 'Cloudinary is not configured on Vercel. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET with Upload permission enabled.'
+        : 'Cloudinary is not configured. Set CLOUDINARY_* environment variables.'
+    );
+  }
+
+  const creds = configureCloudinary();
+  const validation = validateCloudinaryApiKey(creds.api_key);
+  if (!validation.valid) {
+    throw new Error(validation.reason);
   }
 
   const { path, size, cleanup } = prepareUploadFile(multerFile);
@@ -143,13 +219,11 @@ export async function uploadProductImage(multerFile) {
     throw new Error('Uploaded file is empty');
   }
 
-  configureCloudinary();
-
-  console.log('[cloudinary] Uploading via SDK:', {
+  console.log('[cloudinary] Uploading via SDK uploader.upload():', {
     path,
     size: fileStat.size,
-    cloud: env('CLOUDINARY_CLOUD_NAME'),
-    apiKey: env('CLOUDINARY_API_KEY'),
+    cloudName: creds.cloud_name,
+    apiKey: creds.api_key,
   });
 
   try {
@@ -166,7 +240,7 @@ export async function uploadProductImage(multerFile) {
     return result.secure_url;
   } catch (err) {
     logCloudinaryError('uploadProductImage', err);
-    throw new Error(formatCloudinaryError(err));
+    throw formatCloudinaryError(err);
   } finally {
     cleanup();
     if (multerFile.path && multerFile.path !== path) {

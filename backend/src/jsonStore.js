@@ -1,9 +1,10 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from 'fs';
+import './env.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { connectDB, prisma, setDatabaseError } from './db.js';
-import { hasDatabaseUrl } from './utils/dbUrl.js';
+import { requireDatabaseUrl } from './env.js';
 import { ensureDir, isServerless, serverlessPath } from './utils/serverless.js';
 import {
   userToCache, userFromCache,
@@ -27,7 +28,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const DATA_DIR = isServerless
   ? serverlessPath('thahirs-data')
   : join(__dirname, '../../data');
-export const DB_FILE = join(DATA_DIR, 'db.json');
 
 const ARRAY_KEYS = [
   'users', 'categories', 'brands', 'products', 'quotations', 'messages',
@@ -72,7 +72,8 @@ export function getStoreError() {
 /** Ensure MySQL store is ready — retries connection on serverless cold starts */
 export async function ensureStoreReady() {
   if (initialized) return true;
-  if (!hasDatabaseUrl()) return false;
+
+  requireDatabaseUrl();
 
   if (!initPromise) {
     initPromise = initStore().finally(() => {
@@ -82,26 +83,6 @@ export async function ensureStoreReady() {
 
   await initPromise;
   return initialized;
-}
-
-function saveLocalFile() {
-  try {
-    ensureDir(DATA_DIR);
-    writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
-  } catch (err) {
-    console.warn('Could not persist local db.json:', err.message);
-  }
-}
-
-function touchCache() {
-  if (!initialized) saveLocalFile();
-}
-
-function importFromJsonFile() {
-  if (!existsSync(DB_FILE)) return false;
-  const db = JSON.parse(readFileSync(DB_FILE, 'utf8'));
-  Object.keys(defaultDb).forEach(k => { cache[k] = db[k] ?? defaultDb[k]; });
-  return true;
 }
 
 async function loadSettingsFromDb() {
@@ -234,7 +215,7 @@ async function persistAllToMySQL() {
     for (const doc of cache.downloads) await tx.download.create({ data: downloadFromCache(doc) });
     for (const doc of cache.notifications) await tx.notification.create({ data: notificationFromCache(doc) });
     for (const doc of cache.activityLogs) await tx.activityLog.create({ data: activityFromCache(doc) });
-  });
+  }, { timeout: 120000, maxWait: 30000 });
 
   await persistSettings();
 }
@@ -258,14 +239,10 @@ async function persistSettings() {
 }
 
 async function persistDoc(collection, doc) {
-  if (hasDatabaseUrl()) {
-    const ready = await ensureStoreReady();
-    if (!ready) {
-      const detail = getStoreError() || 'Database connection failed';
-      throw new Error(`Database not initialized — cannot save data: ${detail}`);
-    }
-  } else if (!initialized) {
-    return;
+  const ready = await ensureStoreReady();
+  if (!ready) {
+    const detail = getStoreError() || 'Database connection failed';
+    throw new Error(`Database not initialized — cannot save data: ${detail}`);
   }
 
   try {
@@ -344,14 +321,10 @@ async function persistDoc(collection, doc) {
 }
 
 async function persistDelete(collection, id) {
-  if (hasDatabaseUrl()) {
-    const ready = await ensureStoreReady();
-    if (!ready) {
-      const detail = getStoreError() || 'Database connection failed';
-      throw new Error(`Database not initialized — cannot delete data: ${detail}`);
-    }
-  } else if (!initialized) {
-    return;
+  const ready = await ensureStoreReady();
+  if (!ready) {
+    const detail = getStoreError() || 'Database connection failed';
+    throw new Error(`Database not initialized — cannot delete data: ${detail}`);
   }
 
   try {
@@ -382,35 +355,21 @@ async function persistDelete(collection, id) {
 export async function initStore() {
   if (initialized) return;
 
+  requireDatabaseUrl();
+
   try {
     await connectDB();
     await loadFromMySQL();
 
-    const isEmpty = cache.users.length === 0 && cache.products.length === 0;
-    if (isEmpty && importFromJsonFile()) {
-      console.log('[store] Importing existing db.json into MySQL...');
-      await persistAllToMySQL();
-      console.log('[store] db.json imported to MySQL');
-    }
-
     initialized = true;
     initError = null;
-    console.log('[store] Using MySQL for data storage');
+    console.log('[store] MySQL store ready');
   } catch (err) {
     initialized = false;
     initError = err;
     setDatabaseError(err);
     console.error('[store] MySQL initialization failed:', err.message);
-
-    if (!hasDatabaseUrl()) {
-      console.warn('[store] Falling back to local db.json (no DATABASE_URL)');
-      ensureDir(DATA_DIR);
-      if (importFromJsonFile()) {
-        console.log('[store] Loaded data from db.json');
-      } else {
-        cache = structuredClone(defaultDb);
-      }
-    }
+    throw err;
   }
 }
 
@@ -471,7 +430,6 @@ export class Collection {
     for (const doc of withIds) {
       await persistDoc(this.name, doc);
     }
-    touchCache();
     return withIds;
   }
 
@@ -485,7 +443,6 @@ export class Collection {
     if (idx === -1) return null;
     cache[this.name][idx] = { ...cache[this.name][idx], ...data, updatedAt: new Date().toISOString() };
     await persistDoc(this.name, cache[this.name][idx]);
-    touchCache();
     return opts.new !== false ? cache[this.name][idx] : cache[this.name][idx];
   }
 
@@ -493,7 +450,6 @@ export class Collection {
     const item = (cache[this.name] || []).find(i => i._id === id);
     cache[this.name] = (cache[this.name] || []).filter(i => i._id !== id);
     if (item) await persistDelete(this.name, id);
-    touchCache();
     return item;
   }
 
@@ -505,7 +461,6 @@ export class Collection {
         await persistDelete(this.name, id);
       }
     }
-    touchCache();
     return { deletedCount: ids.length };
   }
 }
@@ -533,7 +488,6 @@ export function getSettings() {
 export function saveSettings(data) {
   cache.settings = { ...cache.settings, ...data, updatedAt: new Date().toISOString() };
   persistSettings().catch(err => console.error('Settings persist failed:', err.message));
-  touchCache();
   return cache.settings;
 }
 
@@ -544,7 +498,6 @@ export function getCms() {
 export function saveCms(data) {
   cache.cms = { ...cache.cms, ...data, updatedAt: new Date().toISOString() };
   persistSettings().catch(err => console.error('CMS persist failed:', err.message));
-  touchCache();
   return cache.cms;
 }
 
@@ -555,7 +508,6 @@ export function getAnalytics() {
 export function saveAnalytics(data) {
   cache.analytics = { ...cache.analytics, ...data };
   persistSettings().catch(err => console.error('Analytics persist failed:', err.message));
-  touchCache();
   return cache.analytics;
 }
 
@@ -572,12 +524,29 @@ export function populate(items, fields) {
   });
 }
 
-export function resetDb() {
+export async function resetDb() {
   cache = structuredClone(defaultDb);
-  if (initialized) {
-    persistAllToMySQL().catch(err => console.error('MySQL reset failed:', err.message));
-  }
-  touchCache();
+  if (!initialized) return;
+
+  await prisma.$transaction([
+    prisma.quotationItem.deleteMany(),
+    prisma.quotation.deleteMany(),
+    prisma.productImage.deleteMany(),
+    prisma.product.deleteMany(),
+    prisma.category.deleteMany(),
+    prisma.brand.deleteMany(),
+    prisma.user.deleteMany(),
+    prisma.message.deleteMany(),
+    prisma.teamMember.deleteMany(),
+    prisma.gallery.deleteMany(),
+    prisma.project.deleteMany(),
+    prisma.testimonial.deleteMany(),
+    prisma.faq.deleteMany(),
+    prisma.newsletter.deleteMany(),
+    prisma.download.deleteMany(),
+    prisma.notification.deleteMany(),
+    prisma.activityLog.deleteMany(),
+  ], { timeout: 120000, maxWait: 30000 });
 }
 
 export function backupDb() {
@@ -585,9 +554,6 @@ export function backupDb() {
   const backupPath = join(DATA_DIR, `backup-${Date.now()}.json`);
   try {
     writeFileSync(backupPath, JSON.stringify(cache, null, 2));
-    if (!existsSync(DB_FILE)) writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
-    else copyFileSync(DB_FILE, join(DATA_DIR, `db-snapshot-${Date.now()}.json`));
-    writeFileSync(DB_FILE, JSON.stringify(cache, null, 2));
   } catch (err) {
     console.warn('Could not create backup file:', err.message);
   }
@@ -605,7 +571,6 @@ export function restoreDb(fromPath) {
   if (initialized) {
     persistAllToMySQL().catch(err => console.error('MySQL restore failed:', err.message));
   }
-  touchCache();
 }
 
 export function importDatabase(jsonString) {
@@ -614,7 +579,6 @@ export function importDatabase(jsonString) {
   if (initialized) {
     persistAllToMySQL().catch(err => console.error('MySQL import failed:', err.message));
   }
-  touchCache();
 }
 
 export function load() {

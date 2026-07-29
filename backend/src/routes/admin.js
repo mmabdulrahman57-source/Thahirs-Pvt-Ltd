@@ -617,7 +617,14 @@ router.post('/upload/image', (req, res, next) => {
     });
   } catch (err) {
     console.error('[upload] Image upload failed:', err.message);
-    res.status(500).json({ message: err.message || 'Image upload failed' });
+    const status = err.httpCode === 403 ? 403 : (err.httpCode && err.httpCode < 500 ? err.httpCode : 502);
+    res.status(status).json({
+      message: err.message || 'Image upload failed',
+      cloudinary: err.cloudinary || undefined,
+      hint: status === 403
+        ? 'Enable Upload permission for your API key in Cloudinary Dashboard → Settings → Access Keys.'
+        : undefined,
+    });
   }
 });
 

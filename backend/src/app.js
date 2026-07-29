@@ -65,7 +65,7 @@ export async function createApp() {
       return res.status(503).json({
         ...payload,
         status: 'degraded',
-        hint: 'Check DATABASE_URL SSL settings for Clever Cloud (sslaccept=strict is added automatically)',
+        hint: 'Check DATABASE_URL credentials and SSL settings for Clever Cloud MySQL',
       });
     }
 

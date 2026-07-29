@@ -4,10 +4,12 @@ export function getDatabaseUrl() {
   let url = process.env.DATABASE_URL?.trim();
   if (!url) return undefined;
 
-  const cloudHost = /clever-cloud\.com|planetscale|aiven|railway|aws\.com|tidbcloud/i.test(url);
+  const cleverCloud = /clever-cloud\.com/i.test(url);
+  const cloudHost = cleverCloud || /planetscale|aiven|railway|aws\.com|tidbcloud/i.test(url);
   if (cloudHost && !/sslaccept=|ssl-mode=|sslmode=/i.test(url)) {
     url += url.includes('?') ? '&' : '?';
-    url += 'sslaccept=strict';
+    // Clever Cloud uses a cert chain that fails strict verification on Vercel/Node
+    url += cleverCloud ? 'sslaccept=accept_invalid_certs' : 'sslaccept=strict';
   }
 
   if (process.env.VERCEL && !/connection_limit=/i.test(url)) {

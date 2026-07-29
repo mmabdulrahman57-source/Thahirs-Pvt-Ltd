@@ -27,11 +27,12 @@ router.post('/register', async (req, res) => {
     if (User.findOne({ email })) return res.status(400).json({ message: 'Email already registered' });
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = User.create({ name, email, password: hashed, role: 'customer', company, phone });
+    const user = await User.create({ name, email, password: hashed, role: 'customer', company, phone });
     const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user: safeUser(user) });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('[auth] register failed:', err.message);
+    res.status(500).json({ message: err.message || 'Registration failed' });
   }
 });
 
@@ -45,7 +46,8 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: safeUser(user) });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('[auth] login failed:', err.message);
+    res.status(500).json({ message: err.message || 'Login failed' });
   }
 });
 
@@ -56,11 +58,16 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 router.put('/profile', authMiddleware, async (req, res) => {
-  const { name, company, phone, whatsapp, address, password } = req.body;
-  const data = { name, company, phone, whatsapp, address };
-  if (password) data.password = await bcrypt.hash(password, 10);
-  const user = User.findByIdAndUpdate(req.user.id, data, { new: true });
-  res.json(safeUser(user));
+  try {
+    const { name, company, phone, whatsapp, address, password } = req.body;
+    const data = { name, company, phone, whatsapp, address };
+    if (password) data.password = await bcrypt.hash(password, 10);
+    const user = await User.findByIdAndUpdate(req.user.id, data, { new: true });
+    res.json(safeUser(user));
+  } catch (err) {
+    console.error('[auth] profile update failed:', err.message);
+    res.status(500).json({ message: err.message || 'Profile update failed' });
+  }
 });
 
 export default router;

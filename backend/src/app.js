@@ -8,8 +8,11 @@ import messageRoutes from './routes/messages.js';
 import contentRoutes from './routes/content.js';
 import adminRoutes from './routes/admin.js';
 import { seedIfEmpty } from './seedData.js';
-import { initStore } from './jsonStore.js';
+import { initStore, isStoreReady, getStoreError } from './jsonStore.js';
 import { UPLOAD_ROOT } from './utils/upload.js';
+import { getDatabaseStatus, healthCheck } from './db.js';
+import { hasDatabaseUrl } from './utils/dbUrl.js';
+import { isCloudinaryConfigured } from './utils/cloudinary.js';
 
 dotenv.config();
 
@@ -47,14 +50,40 @@ export async function createApp() {
   app.use('/uploads', express.static(UPLOAD_ROOT));
 
   app.get('/api/health', async (_, res) => {
+    const dbStatus = getDatabaseStatus();
+    const payload = {
+      status: 'ok',
+      company: 'THAHIRS (PVT) LTD',
+      storeReady: isStoreReady(),
+      database: isStoreReady() ? 'mysql' : (hasDatabaseUrl() ? 'disconnected' : 'json-fallback'),
+      cloudinary: isCloudinaryConfigured(),
+      ...dbStatus,
+      storeError: getStoreError(),
+    };
+
+    if (!isStoreReady() && hasDatabaseUrl()) {
+      return res.status(503).json({
+        ...payload,
+        status: 'degraded',
+        hint: 'Check DATABASE_URL SSL settings for Clever Cloud (sslaccept=strict is added automatically)',
+      });
+    }
+
     try {
-      const { healthCheck } = await import('./db.js');
-      await healthCheck();
-      res.json({ status: 'ok', company: 'THAHIRS (PVT) LTD', database: 'mysql' });
-    } catch {
-      res.json({ status: 'ok', company: 'THAHIRS (PVT) LTD', database: 'json-fallback' });
+      const check = await healthCheck();
+      return res.json({ ...payload, userCount: check.userCount });
+    } catch (err) {
+      console.error('[health] Database check failed:', err.message);
+      return res.status(503).json({
+        ...payload,
+        status: 'degraded',
+        error: err.message,
+      });
     }
   });
+
+  await initStore();
+  await seedIfEmpty();
 
   app.use('/api/auth', authRoutes);
   app.use('/api/products', productRoutes);
@@ -63,8 +92,14 @@ export async function createApp() {
   app.use('/api/admin', adminRoutes);
   app.use('/api', contentRoutes);
 
-  await initStore();
-  await seedIfEmpty();
+  app.use((err, req, res, _next) => {
+    console.error(`[api] ${req.method} ${req.path}:`, err.message);
+    if (!res.headersSent) {
+      res.status(err.status || 500).json({
+        message: err.message || 'Internal server error',
+      });
+    }
+  });
 
   return app;
 }

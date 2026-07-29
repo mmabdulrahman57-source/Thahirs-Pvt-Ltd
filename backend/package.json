@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
+    "db:push:prod": "node scripts/db-push-if-configured.js",
     "db:seed": "node src/seed.js",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"

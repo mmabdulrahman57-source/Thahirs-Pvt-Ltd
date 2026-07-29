@@ -23,7 +23,7 @@ router.post('/', authMiddleware, async (req, res) => {
       userId: req.user.id,
       userName: req.user.name || customer?.name,
     });
-    const quotation = Quotation.create({
+    const quotation = await Quotation.create({
       customer: {
         ...customer,
         billingAddress: customer.billingAddress || customer.address,
@@ -39,7 +39,7 @@ router.post('/', authMiddleware, async (req, res) => {
       charges: {},
       userId: req.user.id,
     });
-    Notification.create({ type: 'quotation', title: 'New Quotation Request', message: `${quotation.reference} from ${customer?.name}`, read: false });
+    await Notification.create({ type: 'quotation', title: 'New Quotation Request', message: `${quotation.reference} from ${customer?.name}`, read: false });
     logActivity('quotation', `New quotation ${quotation.reference}`, req.user.id);
     await sendEmail({
       to: process.env.ADMIN_EMAIL || 'info@thahirsgroup.com',
@@ -84,6 +84,7 @@ router.get('/:id', authMiddleware, (req, res) => {
 });
 
 router.put('/:id/respond', authMiddleware, async (req, res) => {
+  try {
   const quotation = Quotation.findOne({ _id: req.params.id });
   if (!quotation) return res.status(404).json({ message: 'Not found' });
   if (quotation.userId !== req.user.id) return res.status(403).json({ message: 'Access denied' });
@@ -107,14 +108,14 @@ router.put('/:id/respond', authMiddleware, async (req, res) => {
     userName: req.user.name,
   });
 
-  const updated = Quotation.findByIdAndUpdate(req.params.id, {
+  const updated = await Quotation.findByIdAndUpdate(req.params.id, {
     status: newStatus,
     customerResponse: message || '',
     customerRespondedAt: new Date().toISOString(),
     timeline,
   });
 
-  Notification.create({
+  await Notification.create({
     type: 'quotation',
     title: `Customer ${action}ed ${quotation.reference}`,
     message: message || `Quotation ${quotation.reference} ${action}ed`,
@@ -129,16 +130,24 @@ router.put('/:id/respond', authMiddleware, async (req, res) => {
   });
 
   res.json(sanitizeForCustomer(updated));
+  } catch (err) {
+    console.error('[quotations] respond failed:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.put('/:id/viewed', authMiddleware, (req, res) => {
+router.put('/:id/viewed', authMiddleware, async (req, res) => {
+  try {
   const quotation = Quotation.findOne({ _id: req.params.id });
   if (!quotation || quotation.userId !== req.user.id) return res.status(404).json({ message: 'Not found' });
   if (normalizeStatus(quotation.status) === 'sent_to_customer') {
     const timeline = addTimelineEntry(quotation, { action: 'viewed', message: 'Customer viewed quotation', userId: req.user.id, userName: req.user.name });
-    Quotation.findByIdAndUpdate(req.params.id, { status: 'customer_viewed', timeline, viewedAt: new Date().toISOString() });
+    await Quotation.findByIdAndUpdate(req.params.id, { status: 'customer_viewed', timeline, viewedAt: new Date().toISOString() });
   }
   res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
@@ -174,11 +183,11 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
       data.timeline = timeline;
     }
 
-    const quotation = Quotation.findByIdAndUpdate(req.params.id, data);
+    const quotation = await Quotation.findByIdAndUpdate(req.params.id, data);
     if (data.sendEmail && ['sent_to_customer', 'ready_to_send'].includes(data.status)) {
       await sendEmail({ to: quotation.customer.email, subject: `Quotation ${quotation.reference} - THAHIRS`, html: quotationSentEmail(quotation) });
       timeline = addTimelineEntry({ timeline }, { action: 'email_sent', message: 'Quotation emailed to customer', userId: req.user.id, userName: req.user.name });
-      Quotation.findByIdAndUpdate(req.params.id, { timeline });
+      await Quotation.findByIdAndUpdate(req.params.id, { timeline });
     }
     res.json(quotation);
   } catch (err) {

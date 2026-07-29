@@ -50,17 +50,30 @@ router.get('/:slug', (req, res) => {
   res.json({ product, related });
 });
 
-router.post('/', authMiddleware, adminOnly, (req, res) => {
-  res.status(201).json(Product.create(req.body));
+router.post('/', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    res.status(201).json(await Product.create(req.body));
+  } catch (err) {
+    console.error('[products] create failed:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.put('/:id', authMiddleware, adminOnly, (req, res) => {
-  res.json(Product.findByIdAndUpdate(req.params.id, req.body, { new: true }));
+router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    res.json(await Product.findByIdAndUpdate(req.params.id, req.body, { new: true }));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.delete('/:id', authMiddleware, adminOnly, (req, res) => {
-  Product.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Deleted' });
+router.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 export default router;

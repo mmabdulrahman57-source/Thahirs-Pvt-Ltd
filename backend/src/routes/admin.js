@@ -49,11 +49,12 @@ function crudRoutes(Collection, opts = {}) {
       let data = { ...req.body };
       if (beforeCreate) data = await beforeCreate(data);
       if (data.name && !data.slug) data.slug = slugify(data.name);
-      const item = Collection.create(data);
+      const item = await Collection.create(data);
       logActivity('create', `${Collection.name} created: ${data.name || data.title || item._id}`, req.user.id);
-      Notification.create({ type: 'info', title: `New ${Collection.name}`, message: data.name || data.title || 'Item created', read: false });
+      await Notification.create({ type: 'info', title: `New ${Collection.name}`, message: data.name || data.title || 'Item created', read: false });
       res.status(201).json(item);
     } catch (err) {
+      console.error(`[admin] create ${Collection.name}:`, err.message);
       res.status(400).json({ message: err.message });
     }
   });
@@ -63,19 +64,25 @@ function crudRoutes(Collection, opts = {}) {
       let data = { ...req.body };
       if (beforeUpdate) data = await beforeUpdate(data);
       if (data.name) data.slug = slugify(data.name);
-      const item = Collection.findByIdAndUpdate(req.params.id, data);
+      const item = await Collection.findByIdAndUpdate(req.params.id, data);
       if (!item) return res.status(404).json({ message: 'Not found' });
       logActivity('update', `${Collection.name} updated: ${req.params.id}`, req.user.id);
       res.json(item);
     } catch (err) {
+      console.error(`[admin] update ${Collection.name}:`, err.message);
       res.status(400).json({ message: err.message });
     }
   });
 
-  r.delete('/:id', (req, res) => {
-    Collection.findByIdAndDelete(req.params.id);
-    logActivity('delete', `${Collection.name} deleted: ${req.params.id}`, req.user.id);
-    res.json({ message: 'Deleted' });
+  r.delete('/:id', async (req, res) => {
+    try {
+      await Collection.findByIdAndDelete(req.params.id);
+      logActivity('delete', `${Collection.name} deleted: ${req.params.id}`, req.user.id);
+      res.json({ message: 'Deleted' });
+    } catch (err) {
+      console.error(`[admin] delete ${Collection.name}:`, err.message);
+      res.status(400).json({ message: err.message });
+    }
   });
 
   return r;
@@ -161,28 +168,43 @@ router.get('/customers', (req, res) => {
 });
 
 router.post('/customers', async (req, res) => {
-  const { name, email, password, company, phone } = req.body;
-  if (User.findOne({ email })) return res.status(400).json({ message: 'Email exists' });
-  const hashed = await bcrypt.hash(password || 'customer123', 10);
-  const user = User.create({ name, email, password: hashed, role: 'customer', company, phone, active: true });
-  logActivity('user', `Customer created: ${email}`, req.user.id);
-  const { password: _, ...safe } = user;
-  res.status(201).json(safe);
+  try {
+    const { name, email, password, company, phone } = req.body;
+    if (User.findOne({ email })) return res.status(400).json({ message: 'Email exists' });
+    const hashed = await bcrypt.hash(password || 'customer123', 10);
+    const user = await User.create({ name, email, password: hashed, role: 'customer', company, phone, active: true });
+    logActivity('user', `Customer created: ${email}`, req.user.id);
+    const { password: _, ...safe } = user;
+    res.status(201).json(safe);
+  } catch (err) {
+    console.error('[admin] create customer:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
 router.put('/customers/:id', async (req, res) => {
-  const data = { ...req.body };
-  if (data.password) data.password = await bcrypt.hash(data.password, 10);
-  const user = User.findByIdAndUpdate(req.params.id, data);
-  if (!user) return res.status(404).json({ message: 'Not found' });
-  const { password, ...safe } = user;
-  res.json(safe);
+  try {
+    const data = { ...req.body };
+    if (data.password) data.password = await bcrypt.hash(data.password, 10);
+    const user = await User.findByIdAndUpdate(req.params.id, data);
+    if (!user) return res.status(404).json({ message: 'Not found' });
+    const { password, ...safe } = user;
+    res.json(safe);
+  } catch (err) {
+    console.error('[admin] update customer:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.delete('/customers/:id', (req, res) => {
-  User.findByIdAndDelete(req.params.id);
-  logActivity('user', `Customer deleted: ${req.params.id}`, req.user.id);
-  res.json({ message: 'Deleted' });
+router.delete('/customers/:id', async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    logActivity('user', `Customer deleted: ${req.params.id}`, req.user.id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    console.error('[admin] delete customer:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
 router.get('/customers/:id/quotations', (req, res) => {
@@ -195,27 +217,42 @@ router.get('/admins', (req, res) => {
 });
 
 router.post('/admins', async (req, res) => {
-  const { name, email, password, adminRole } = req.body;
-  if (User.findOne({ email })) return res.status(400).json({ message: 'Email exists' });
-  const hashed = await bcrypt.hash(password, 10);
-  const user = User.create({ name, email, password: hashed, role: 'admin', adminRole: adminRole || 'admin', active: true });
-  logActivity('admin', `Admin created: ${email}`, req.user.id);
-  const { password: _, ...safe } = user;
-  res.status(201).json(safe);
+  try {
+    const { name, email, password, adminRole } = req.body;
+    if (User.findOne({ email })) return res.status(400).json({ message: 'Email exists' });
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password: hashed, role: 'admin', adminRole: adminRole || 'admin', active: true });
+    logActivity('admin', `Admin created: ${email}`, req.user.id);
+    const { password: _, ...safe } = user;
+    res.status(201).json(safe);
+  } catch (err) {
+    console.error('[admin] create admin:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
 router.put('/admins/:id', async (req, res) => {
-  const data = { ...req.body };
-  if (data.password) data.password = await bcrypt.hash(data.password, 10);
-  const user = User.findByIdAndUpdate(req.params.id, data);
-  const { password, ...safe } = user;
-  res.json(safe);
+  try {
+    const data = { ...req.body };
+    if (data.password) data.password = await bcrypt.hash(data.password, 10);
+    const user = await User.findByIdAndUpdate(req.params.id, data);
+    const { password, ...safe } = user;
+    res.json(safe);
+  } catch (err) {
+    console.error('[admin] update admin:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.delete('/admins/:id', (req, res) => {
-  if (req.params.id === req.user.id) return res.status(400).json({ message: 'Cannot delete yourself' });
-  User.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Deleted' });
+router.delete('/admins/:id', async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) return res.status(400).json({ message: 'Cannot delete yourself' });
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    console.error('[admin] delete admin:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
 // ─── ROLES ───
@@ -228,20 +265,33 @@ router.use('/products', crudRoutes(Product, {
   beforeCreate: (d) => ({ ...d, archived: false, status: d.status || 'active' }),
 }));
 
-router.post('/products/:id/duplicate', (req, res) => {
-  const orig = Product.findOne({ _id: req.params.id });
-  if (!orig) return res.status(404).json({ message: 'Not found' });
-  const { _id, createdAt, updatedAt, ...data } = orig;
-  const copy = Product.create({ ...data, name: `${data.name} (Copy)`, slug: slugify(`${data.name}-copy-${Date.now()}`) });
-  res.status(201).json(copy);
+router.post('/products/:id/duplicate', async (req, res) => {
+  try {
+    const orig = Product.findOne({ _id: req.params.id });
+    if (!orig) return res.status(404).json({ message: 'Not found' });
+    const { _id, createdAt, updatedAt, ...data } = orig;
+    const copy = await Product.create({ ...data, name: `${data.name} (Copy)`, slug: slugify(`${data.name}-copy-${Date.now()}`) });
+    res.status(201).json(copy);
+  } catch (err) {
+    console.error('[admin] duplicate product:', err.message);
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.put('/products/:id/archive', (req, res) => {
-  res.json(Product.findByIdAndUpdate(req.params.id, { archived: true, status: 'archived' }));
+router.put('/products/:id/archive', async (req, res) => {
+  try {
+    res.json(await Product.findByIdAndUpdate(req.params.id, { archived: true, status: 'archived' }));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.put('/products/:id/restore', (req, res) => {
-  res.json(Product.findByIdAndUpdate(req.params.id, { archived: false, status: 'active' }));
+router.put('/products/:id/restore', async (req, res) => {
+  try {
+    res.json(await Product.findByIdAndUpdate(req.params.id, { archived: false, status: 'active' }));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 // ─── CATEGORIES, BRANDS, DOWNLOADS ───
@@ -313,12 +363,12 @@ router.put('/quotations/:id', async (req, res) => {
   }
   if (data.status === 'sent_to_customer') data.sentAt = new Date().toISOString();
 
-  const quotation = Quotation.findByIdAndUpdate(req.params.id, data);
+  const quotation = await Quotation.findByIdAndUpdate(req.params.id, data);
 
   if (data.sendEmail && data.status === 'sent_to_customer') {
     await sendEmail({ to: quotation.customer.email, subject: `Quotation ${quotation.reference}`, html: quotationSentEmail(quotation) });
     timeline = addTimelineEntry({ timeline: quotation.timeline || timeline }, { action: 'email_sent', message: 'Quotation emailed', userId: req.user.id, userName: req.user.name });
-    Quotation.findByIdAndUpdate(req.params.id, { timeline });
+    await Quotation.findByIdAndUpdate(req.params.id, { timeline });
   }
   if (data.sendReminder) {
     await sendEmail({ to: quotation.customer.email, subject: `Reminder: ${quotation.reference}`, html: quotationReminderEmail(quotation) });
@@ -328,7 +378,7 @@ router.put('/quotations/:id', async (req, res) => {
   }
 
   logActivity('quotation', `${quotation.reference} → ${data.status || existing.status}`, req.user.id);
-  Notification.create({ type: 'quotation', title: 'Quotation Updated', message: `${quotation.reference} updated`, read: false });
+  await Notification.create({ type: 'quotation', title: 'Quotation Updated', message: `${quotation.reference} updated`, read: false });
   res.json(quotation);
 });
 
@@ -339,10 +389,10 @@ router.post('/quotations/bulk', async (req, res) => {
   for (const id of ids) {
     const q = Quotation.findOne({ _id: id });
     if (!q) continue;
-    if (action === 'status') Quotation.findByIdAndUpdate(id, { status: normalizeStatus(value) });
-    else if (action === 'assign') Quotation.findByIdAndUpdate(id, { assignedTo: value });
-    else if (action === 'archive') Quotation.findByIdAndUpdate(id, { archived: true });
-    else if (action === 'delete') Quotation.findByIdAndDelete(id);
+    if (action === 'status') await Quotation.findByIdAndUpdate(id, { status: normalizeStatus(value) });
+    else if (action === 'assign') await Quotation.findByIdAndUpdate(id, { assignedTo: value });
+    else if (action === 'archive') await Quotation.findByIdAndUpdate(id, { archived: true });
+    else if (action === 'delete') await Quotation.findByIdAndDelete(id);
     results.push(id);
   }
   res.json({ updated: results.length });
@@ -523,11 +573,21 @@ router.post('/backup/restore', (req, res) => {
 });
 
 // ─── IMAGE UPLOAD ───
-router.post('/upload/image', uploadImage.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ message: 'No image file provided' });
-  const url = `/uploads/products/${req.file.filename}`;
-  logActivity('upload', `Image uploaded: ${req.file.filename}`, req.user.id);
-  res.json({ url, filename: req.file.filename });
+router.post('/upload/image', uploadImage.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No image file provided' });
+    const { uploadProductImage, isCloudinaryConfigured } = await import('../utils/cloudinary.js');
+    const url = await uploadProductImage(req.file);
+    logActivity('upload', `Image uploaded: ${url}`, req.user.id);
+    res.json({
+      url,
+      filename: req.file.filename,
+      storage: isCloudinaryConfigured() ? 'cloudinary' : 'local',
+    });
+  } catch (err) {
+    console.error('[upload] Image upload failed:', err.message);
+    res.status(500).json({ message: err.message || 'Image upload failed' });
+  }
 });
 
 // ─── LOGS ───

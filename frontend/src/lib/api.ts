@@ -20,6 +20,10 @@ api.interceptors.response.use(
   }
 );
 
+export function getApiError(err: unknown, fallback = 'Request failed') {
+  return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
+}
+
 export default api;
 
 export const getProducts = (params?: Record<string, string>) => api.get('/products', { params }).then(r => r.data);

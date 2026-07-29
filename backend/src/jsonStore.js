@@ -2,7 +2,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, readd
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
-import { connectDB, prisma } from './db.js';
+import { connectDB, prisma, setDatabaseError } from './db.js';
+import { hasDatabaseUrl } from './utils/dbUrl.js';
 import { ensureDir, isServerless, serverlessPath } from './utils/serverless.js';
 import {
   userToCache, userFromCache,
@@ -57,6 +58,15 @@ const defaultDb = {
 
 let cache = structuredClone(defaultDb);
 let initialized = false;
+let initError = null;
+
+export function isStoreReady() {
+  return initialized;
+}
+
+export function getStoreError() {
+  return initError?.message || null;
+}
 
 function saveLocalFile() {
   try {
@@ -232,7 +242,12 @@ async function persistSettings() {
 }
 
 async function persistDoc(collection, doc) {
-  if (!initialized) return;
+  if (!initialized) {
+    if (hasDatabaseUrl()) {
+      throw new Error('Database not initialized — cannot save data');
+    }
+    return;
+  }
   try {
     switch (collection) {
       case 'users':
@@ -303,12 +318,18 @@ async function persistDoc(collection, doc) {
         break;
     }
   } catch (err) {
-    console.error(`MySQL persist failed (${collection}/${doc._id}):`, err.message);
+    console.error(`[db] MySQL persist failed (${collection}/${doc._id}):`, err.message);
+    throw err;
   }
 }
 
 async function persistDelete(collection, id) {
-  if (!initialized) return;
+  if (!initialized) {
+    if (hasDatabaseUrl()) {
+      throw new Error('Database not initialized — cannot delete data');
+    }
+    return;
+  }
   try {
     const deletes = {
       users: () => prisma.user.delete({ where: { id } }),
@@ -329,7 +350,8 @@ async function persistDelete(collection, id) {
     };
     if (deletes[collection]) await deletes[collection]();
   } catch (err) {
-    console.error(`MySQL delete failed (${collection}/${id}):`, err.message);
+    console.error(`[db] MySQL delete failed (${collection}/${id}):`, err.message);
+    throw err;
   }
 }
 
@@ -342,19 +364,28 @@ export async function initStore() {
 
     const isEmpty = cache.users.length === 0 && cache.products.length === 0;
     if (isEmpty && importFromJsonFile()) {
-      console.log('Importing existing db.json into MySQL...');
+      console.log('[store] Importing existing db.json into MySQL...');
       await persistAllToMySQL();
-      console.log('db.json imported to MySQL');
+      console.log('[store] db.json imported to MySQL');
     }
 
     initialized = true;
-    console.log('Using MySQL (thahirs_db) for data storage');
+    initError = null;
+    console.log('[store] Using MySQL for data storage');
   } catch (err) {
-    console.warn('MySQL connection failed — falling back to local db.json');
-    console.warn(err.message);
+    initError = err;
+    setDatabaseError(err);
+    console.error('[store] MySQL initialization failed:', err.message);
+
+    if (hasDatabaseUrl()) {
+      initialized = false;
+      return;
+    }
+
+    console.warn('[store] Falling back to local db.json (no DATABASE_URL)');
     ensureDir(DATA_DIR);
     if (importFromJsonFile()) {
-      console.log('Loaded data from db.json');
+      console.log('[store] Loaded data from db.json');
     } else {
       cache = structuredClone(defaultDb);
     }
@@ -409,44 +440,49 @@ export class Collection {
     return this.find(filter).length;
   }
 
-  insertMany(docs) {
+  async insertMany(docs) {
     const withIds = docs.map(d => ({
       ...d,
       _id: d._id || randomUUID(),
       createdAt: d.createdAt || new Date().toISOString(),
     }));
     cache[this.name] = [...(cache[this.name] || []), ...withIds];
-    withIds.forEach(doc => persistDoc(this.name, doc));
+    for (const doc of withIds) {
+      await persistDoc(this.name, doc);
+    }
     touchCache();
     return withIds;
   }
 
-  create(doc) {
-    return this.insertMany([doc])[0];
+  async create(doc) {
+    const [created] = await this.insertMany([doc]);
+    return created;
   }
 
-  findByIdAndUpdate(id, data, opts = {}) {
+  async findByIdAndUpdate(id, data, opts = {}) {
     const idx = (cache[this.name] || []).findIndex(i => i._id === id);
     if (idx === -1) return null;
     cache[this.name][idx] = { ...cache[this.name][idx], ...data, updatedAt: new Date().toISOString() };
-    persistDoc(this.name, cache[this.name][idx]);
+    await persistDoc(this.name, cache[this.name][idx]);
     touchCache();
     return opts.new !== false ? cache[this.name][idx] : cache[this.name][idx];
   }
 
-  findByIdAndDelete(id) {
+  async findByIdAndDelete(id) {
     const item = (cache[this.name] || []).find(i => i._id === id);
     cache[this.name] = (cache[this.name] || []).filter(i => i._id !== id);
-    if (item) persistDelete(this.name, id);
+    if (item) await persistDelete(this.name, id);
     touchCache();
     return item;
   }
 
-  deleteMany() {
+  async deleteMany() {
     const ids = (cache[this.name] || []).map(i => i._id);
     cache[this.name] = [];
     if (initialized) {
-      ids.forEach(id => persistDelete(this.name, id));
+      for (const id of ids) {
+        await persistDelete(this.name, id);
+      }
     }
     touchCache();
     return { deletedCount: ids.length };

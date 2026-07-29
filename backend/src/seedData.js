@@ -51,18 +51,18 @@ const productTemplates = [
 
 export async function seedIfEmpty() {
   if (User.countDocuments() > 0) return;
-  console.log('Seeding MySQL database (thahirs_db)...');
+  console.log('[seed] Seeding MySQL database...');
   resetDb();
 
   const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
-  User.create({ name: 'Admin', email: process.env.ADMIN_EMAIL || 'admin@thahirsgroup.com', password: hashedPassword, role: 'admin', adminRole: 'super_admin' });
+  await User.create({ name: 'Admin', email: process.env.ADMIN_EMAIL || 'admin@thahirsgroup.com', password: hashedPassword, role: 'admin', adminRole: 'super_admin' });
 
-  const createdCategories = Category.insertMany(categories.map(c => ({ ...c, slug: slugify(c.name) })));
-  const createdBrands = Brand.insertMany(brands);
+  const createdCategories = await Category.insertMany(categories.map(c => ({ ...c, slug: slugify(c.name) })));
+  const createdBrands = await Brand.insertMany(brands);
   const brandMap = Object.fromEntries(createdBrands.map(b => [b.name, b._id]));
   const catMap = Object.fromEntries(createdCategories.map(c => [c.name, c._id]));
 
-  Product.insertMany(productTemplates.map((p, i) => ({
+  await Product.insertMany(productTemplates.map((p, i) => ({
     name: p.name, slug: slugify(p.name),
     description: `High-quality ${p.name} supplied by THAHIRS (PVT) LTD. Genuine international brand with full technical support.`,
     category: catMap[p.category], brand: brandMap[p.brand], tags: p.tags, featured: i < 6,
@@ -73,25 +73,25 @@ export async function seedIfEmpty() {
     ],
   })));
 
-  TeamMember.insertMany([
+  await TeamMember.insertMany([
     { name: 'M.T.M.S. Deen', position: 'Chairman', experience: '30+ years in Industrial Hardware', email: 'info@thahirsgroup.com', order: 1 },
     { name: 'M.T.M. Kamal Pasha', position: 'Managing Director', experience: 'Dip. In BM (NIBM) | 50+ years experience', email: 'info@thahirsgroup.com', order: 2 },
   ]);
 
-  Testimonial.insertMany([
+  await Testimonial.insertMany([
     { name: 'Industrial Client', company: 'Leading Manufacturing Plant', content: 'THAHIRS has been our trusted supplier for over a decade.', rating: 5, featured: true },
     { name: 'Engineering Contractor', company: 'Major Construction Firm', content: 'From a single screw to complete project supplies, THAHIRS delivers consistently.', rating: 5, featured: true },
     { name: 'Water Board Official', company: 'Government Project', content: 'We rely on THAHIRS for waterworks materials and valves.', rating: 5, featured: true },
   ]);
 
-  Project.insertMany([
+  await Project.insertMany([
     { title: 'Industrial Valve Supply - Power Plant', description: 'Complete valve supply for power generation facility.', industry: 'Power Plants', location: 'Western Province', featured: true },
     { title: 'Waterworks Pipeline Project', description: 'Ductile iron pipes for municipal water supply.', industry: 'Water Supply', location: 'Colombo', featured: true },
     { title: 'Hotel HVAC Piping System', description: 'Complete piping solutions for luxury hotel.', industry: 'Hotels', location: 'Colombo', featured: true },
     { title: 'Factory Pneumatic Systems', description: 'Pneumatic fittings for manufacturing facility.', industry: 'Manufacturing', location: 'Kandy', featured: true },
   ]);
 
-  Gallery.insertMany([
+  await Gallery.insertMany([
     { title: 'THAHIRS Office - Quarry Road', category: 'office', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800', featured: true },
     { title: 'Industrial Warehouse', category: 'warehouse', url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800', featured: true },
     { title: 'Product Display Store', category: 'store', url: 'https://images.unsplash.com/photo-1565043589221-1a6fd9ae45c?w=800', featured: true },
@@ -100,13 +100,13 @@ export async function seedIfEmpty() {
     { title: 'Valve Inventory', category: 'products', url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800' },
   ]);
 
-  Faq.insertMany([
+  await Faq.insertMany([
     { question: 'What products does THAHIRS supply?', answer: 'Steam boiler fittings, waterworks materials, pipes, valves, pneumatic systems, and industrial equipment.', category: 'General', order: 1 },
     { question: 'Do you deliver island-wide?', answer: 'Yes, we provide island-wide delivery across Sri Lanka.', category: 'Delivery', order: 2 },
     { question: 'How do I request a quotation?', answer: 'Register on our website, add products, and submit a quotation request.', category: 'Quotations', order: 3 },
   ]);
 
-  Download.insertMany([
+  await Download.insertMany([
     { title: 'Product Catalogue 2026', type: 'catalogue', url: '/downloads/catalogue.pdf', category: 'catalogue' },
     { title: 'Company Profile', type: 'brochure', url: '/downloads/profile.pdf', category: 'brochure' },
   ]);
@@ -119,5 +119,5 @@ export async function seedIfEmpty() {
     tax: { vatPercentage: 18, enabled: true, autoApply: true },
   });
 
-  console.log('MySQL database seeded!');
+  console.log('[seed] Database seeded successfully');
 }

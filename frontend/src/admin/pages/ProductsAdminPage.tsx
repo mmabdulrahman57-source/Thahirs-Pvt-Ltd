@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Copy, Archive, RotateCcw, ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminList, adminCreate, adminUpdate, adminDelete, adminDuplicateProduct, adminArchiveProduct, adminRestoreProduct } from '../api';
+import { getApiError } from '../../lib/api';
 import { PageHeader, Modal, StatusBadge } from '../components/shared';
 import ImageManager, { type ProductImages } from '../components/ImageManager';
 
@@ -76,7 +77,7 @@ export default function ProductsAdminPage() {
       if (editItem) await adminUpdate('products', editItem._id as string, data);
       else await adminCreate('products', data);
       toast.success('Saved'); setModal(false); load();
-    } catch { toast.error('Failed'); }
+    } catch (err) { toast.error(getApiError(err, 'Failed to save product')); }
   };
 
   return (

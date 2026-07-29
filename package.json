@@ -10,7 +10,7 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "npm run dev --prefix backend",
     "vercel-install": "npm install && npm install --prefix frontend && npm install --prefix backend",
-    "vercel-build": "npm run db:generate --prefix backend && npm run build --prefix frontend",
+    "vercel-build": "npm run db:generate --prefix backend && npm run db:push:prod --prefix backend && npm run build --prefix frontend",
     "build": "npm run vercel-build",
     "start": "npm run start --prefix backend"
   },

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminList, adminCreate, adminUpdate, adminDelete } from '../api';
+import { getApiError } from '../../lib/api';
 import { PageHeader, Modal, EmptyState } from '../components/shared';
 import PhotoField from '../components/PhotoField';
 import AdminSearchBar from '../components/SearchBar';
@@ -51,7 +52,7 @@ export default function GenericCrudPage({ resource, title, fields, columns }: Pr
       toast.success(editItem ? 'Updated' : 'Created');
       setModal(false);
       load();
-    } catch { toast.error('Save failed'); }
+    } catch (err) { toast.error(getApiError(err, 'Save failed')); }
   };
 
   const handleDelete = async (id: string) => {

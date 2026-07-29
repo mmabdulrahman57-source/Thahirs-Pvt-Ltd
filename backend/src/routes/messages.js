@@ -7,15 +7,20 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const message = Message.create(req.body);
-    await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'info@thahirsgroup.com',
-      subject: `Contact: ${req.body.subject || 'New Message'}`,
-      html: `<p>From: ${req.body.name} (${req.body.email})</p><p>${req.body.message}</p>`,
-    });
+    const message = await Message.create(req.body);
+    try {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL || 'info@thahirsgroup.com',
+        subject: `Contact: ${req.body.subject || 'New Message'}`,
+        html: `<p>From: ${req.body.name} (${req.body.email})</p><p>${req.body.message}</p>`,
+      });
+    } catch (emailErr) {
+      console.warn('[messages] Email notification failed:', emailErr.message);
+    }
     res.status(201).json(message);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    console.error('[messages] create failed:', err.message);
+    res.status(400).json({ message: err.message || 'Failed to save message' });
   }
 });
 
@@ -23,13 +28,21 @@ router.get('/', authMiddleware, adminOnly, (req, res) => {
   res.json(Message.find().reverse());
 });
 
-router.put('/:id/read', authMiddleware, adminOnly, (req, res) => {
-  res.json(Message.findByIdAndUpdate(req.params.id, { read: true }, { new: true }));
+router.put('/:id/read', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    res.json(await Message.findByIdAndUpdate(req.params.id, { read: true }, { new: true }));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
-router.delete('/:id', authMiddleware, adminOnly, (req, res) => {
-  Message.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Deleted' });
+router.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    await Message.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 export default router;

@@ -1,11 +1,10 @@
 import { v2 as cloudinary } from 'cloudinary';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, statSync, unlinkSync } from 'fs';
+import { prepareUploadFile } from './upload.js';
 
 function env(name) {
   return process.env[name]?.trim() || '';
 }
-
-let configured = false;
 
 export function isCloudinaryConfigured() {
   return Boolean(
@@ -15,18 +14,14 @@ export function isCloudinaryConfigured() {
   );
 }
 
+/** Always reconfigure — serverless instances must not cache stale credentials */
 export function configureCloudinary() {
-  if (configured) return;
-
   cloudinary.config({
     cloud_name: env('CLOUDINARY_CLOUD_NAME'),
     api_key: env('CLOUDINARY_API_KEY'),
     api_secret: env('CLOUDINARY_API_SECRET'),
     secure: true,
   });
-
-  configured = true;
-  console.log('[cloudinary] Configured cloud:', env('CLOUDINARY_CLOUD_NAME'));
 }
 
 export function getCloudinaryStatus() {
@@ -38,29 +33,66 @@ export function getCloudinaryStatus() {
   };
 }
 
-export async function uploadProductImage(file) {
-  if (!file?.path) throw new Error('No file provided');
+function formatCloudinaryError(err) {
+  const httpCode = err?.http_code ?? err?.error?.http_code;
+  const message = err?.message ?? err?.error?.message ?? String(err);
+
+  if (httpCode === 403) {
+    return `Cloudinary upload forbidden (403). Authentication works (ping ok) but this API key cannot upload. In Cloudinary Dashboard → Settings → Access Keys, use the Primary API key or enable Upload permission for key ${env('CLOUDINARY_API_KEY')}.`;
+  }
+
+  return httpCode ? `Cloudinary error ${httpCode}: ${message}` : message;
+}
+
+export async function uploadProductImage(multerFile) {
+  if (!multerFile) throw new Error('No file provided');
 
   if (!isCloudinaryConfigured()) {
     if (process.env.VERCEL) {
       throw new Error('Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Vercel.');
     }
-    return `/uploads/products/${file.filename}`;
+    const prepared = prepareUploadFile(multerFile);
+    return `/uploads/products/${multerFile.filename || 'local-image.jpg'}`;
   }
 
-  if (!existsSync(file.path)) {
-    throw new Error(`Upload file not found: ${file.path}`);
+  const prepared = prepareUploadFile(multerFile);
+  const { path, size, cleanup } = prepared;
+
+  if (!existsSync(path)) {
+    throw new Error(`Upload file not found: ${path}`);
+  }
+
+  const fileStat = statSync(path);
+  if (fileStat.size === 0 || size === 0) {
+    cleanup();
+    throw new Error('Uploaded file is empty');
   }
 
   configureCloudinary();
 
   try {
-    const result = await cloudinary.uploader.upload(file.path, {
+    const result = await cloudinary.uploader.upload(path, {
       folder: 'thahirs/products',
       resource_type: 'image',
     });
+
+    if (!result?.secure_url) {
+      throw new Error('Cloudinary upload succeeded but no secure_url was returned');
+    }
+
     return result.secure_url;
+  } catch (err) {
+    console.error('[cloudinary] Upload failed:', formatCloudinaryError(err));
+    throw new Error(formatCloudinaryError(err));
   } finally {
-    try { unlinkSync(file.path); } catch { /* ignore */ }
+    cleanup();
+    if (multerFile.path && multerFile.path !== path) {
+      try { unlinkSync(multerFile.path); } catch { /* ignore */ }
+    }
   }
+}
+
+export async function verifyCloudinaryConnection() {
+  configureCloudinary();
+  return cloudinary.api.ping();
 }

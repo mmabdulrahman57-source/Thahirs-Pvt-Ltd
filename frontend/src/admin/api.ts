@@ -64,7 +64,6 @@ export const adminLoginLogs = () => admin('/logs/login');
 export const adminUploadImage = (file: File) => {
   const form = new FormData();
   form.append('image', file);
-  return api.post('/admin/upload/image', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then(r => r.data as { url: string; filename: string });
+  // Do not set Content-Type — axios must add the multipart boundary automatically
+  return api.post('/admin/upload/image', form).then(r => r.data as { url: string; filename: string });
 };

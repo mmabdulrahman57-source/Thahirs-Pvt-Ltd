@@ -573,16 +573,34 @@ router.post('/backup/restore', (req, res) => {
 });
 
 // ─── IMAGE UPLOAD ───
-router.post('/upload/image', uploadImage.single('image'), async (req, res) => {
+router.post('/upload/image', (req, res, next) => {
+  uploadImage.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('[upload] Multer error:', err.message);
+      return res.status(400).json({ message: err.message || 'Invalid upload' });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: 'No image file provided' });
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided. Use field name "image".' });
+    }
+
+    console.log('[upload] Received file:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      hasBuffer: Boolean(req.file.buffer?.length),
+      path: req.file.path || null,
+    });
 
     const { uploadProductImage, getCloudinaryStatus } = await import('../utils/cloudinary.js');
     const url = await uploadProductImage(req.file);
     logActivity('upload', `Image uploaded: ${url}`, req.user.id);
     res.json({
       url,
-      filename: req.file.filename,
+      filename: req.file.originalname,
       storage: getCloudinaryStatus().configured ? 'cloudinary' : 'local',
     });
   } catch (err) {
